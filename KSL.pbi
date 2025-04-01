@@ -751,6 +751,29 @@ Procedure.i InitNetworkVerify(TimeoutMS.i = MinutesToMilliseconds(3))
 EndProcedure
 
 CompilerEndIf
+
+;-
+
+;- ----- OS-Specific Initialization -----
+
+CompilerIf (#Linux)
+
+CompilerIf (#True)
+  ;
+  ; On Linux, launching executable from file explorer seems to default its CWD to user's home.
+  ; This will adjust it to the executable's directory, if it makes sense (eg. not in TEMP folder via PB IDE!)
+  ;
+  If (GetCurrentDirectory() <> GetProgramDirectory())
+    If (GetProgramDirectory() <> GetTemporaryDirectory())
+      If (GetCurrentDirectory() = GetHomeDirectory())
+        SetCurrentDirectory(GetProgramDirectory())
+      EndIf
+    EndIf
+  EndIf
+CompilerEndIf
+
+CompilerEndIf
+
 ;-
 
 CompilerEndIf
