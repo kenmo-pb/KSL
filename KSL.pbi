@@ -410,28 +410,6 @@ Macro Contains(_String, _Substring)
   (Bool(FindString((_String), (_Substring)) > 0))
 EndMacro
 
-Procedure.s NormalizePathSeparators(Path.s)
-  CompilerIf (#Windows Or (#True))
-    ReplaceString(Path, #NPS$, #PS$, #PB_String_InPlace)
-  CompilerEndIf
-  ProcedureReturn (Path)
-EndProcedure
-
-Procedure.s EnsurePathSeparator(Path.s)
-  If (Path)
-    CompilerIf (#Windows Or (#False))
-      If (Not (EndsWith(Path, #PS$) Or EndsWith(Path, #NPS$)))
-        Path + #PS$
-      EndIf
-    CompilerElse
-      If (Not EndsWith(Path, #PS$))
-        Path + #PS$
-      EndIf
-    CompilerEndIf
-  EndIf
-  ProcedureReturn (Path)
-EndProcedure
-
 Procedure.s LTrimWhitespace(String.s)
   Protected *C.CHARACTER = @String
   While (#True)
@@ -615,6 +593,80 @@ EndProcedure
 
 ;-
 
+;- ----- Path Functions -----
+
+Macro PathExists(_Path)
+  (Bool(FileSize(_Path) = #PB_FileSize_Directory))
+EndMacro
+
+Macro FileExists(_File)
+  (Bool(FileSize(_File) >= 0))
+EndMacro
+
+Procedure.s NormalizePathSeparators(Path.s, SeparatorToUse.s = #PS$)
+  Select (SeparatorToUse)
+    Case "/"
+      ReplaceString(Path, "\", "/", #PB_String_InPlace)
+    Case "\"
+      ReplaceString(Path, "/", "\", #PB_String_InPlace)
+    Case ""
+      ReplaceString(Path, #NPS$, #PS$, #PB_String_InPlace)
+    Default
+      CompilerIf (#Windows Or (#True))
+        ReplaceString(Path, "\", SeparatorToUse, #PB_String_InPlace)
+      CompilerEndIf
+      ReplaceString(Path, "/", SeparatorToUse, #PB_String_InPlace)
+  EndSelect
+  ProcedureReturn (Path)
+EndProcedure
+
+Procedure.s EnsurePathSeparator(Path.s)
+  If (Path)
+    CompilerIf (#Windows Or (#False))
+      If (Not (EndsWith(Path, #PS$) Or EndsWith(Path, #NPS$)))
+        Path + #PS$
+      EndIf
+    CompilerElse
+      If (Not EndsWith(Path, #PS$))
+        Path + #PS$
+      EndIf
+    CompilerEndIf
+  EndIf
+  ProcedureReturn (Path)
+EndProcedure
+
+Procedure.s GetParentDirectory(Directory.s)
+  If (Directory)
+    CompilerIf (#Windows Or (#True))
+      Directory = RTrim(Directory, "\")
+    CompilerEndIf
+    Directory = RTrim(Directory, "/")
+    Directory = GetPathPart(Directory)
+  EndIf
+  ProcedureReturn (Directory)
+EndProcedure
+
+Procedure.s GetProgramDirectory()
+  ProcedureReturn (GetPathPart(ProgramFilename()))
+EndProcedure
+
+Procedure.s GetDesktopDirectory()
+  ProcedureReturn (GetUserDirectory(#PB_Directory_Desktop))
+EndProcedure
+
+Procedure.s GetDocumentsDirectory()
+  ProcedureReturn (GetUserDirectory(#PB_Directory_Documents))
+EndProcedure
+
+Procedure.s GetDownloadsDirectory()
+  ProcedureReturn (GetUserDirectory(#PB_Directory_Downloads))
+EndProcedure
+
+Procedure.s GetMusicDirectory()
+  ProcedureReturn (GetUserDirectory(#PB_Directory_Musics))
+EndProcedure
+
+;-
 ;- ----- Network Functions -----
 CompilerIf (Not #KSL_ExcludeNetworkFunctions)
 
