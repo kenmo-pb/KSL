@@ -667,7 +667,29 @@ Procedure.s GetMusicDirectory()
 EndProcedure
 
 ;-
+
+;- ----- Gadget Functions -----
+
+Macro GetCanvasKey(_Gadget)
+  (GetGadgetAttribute((_Gadget), #PB_Canvas_Key))
+EndMacro
+Macro GetCanvasModifiers(_Gadget)
+  (GetGadgetAttribute((_Gadget), #PB_Canvas_Modifiers))
+EndMacro
+Macro GetCanvasMouseX(_Gadget)
+  (GetGadgetAttribute((_Gadget), #PB_Canvas_MouseX))
+EndMacro
+Macro GetCanvasMouseY(_Gadget)
+  (GetGadgetAttribute((_Gadget), #PB_Canvas_MouseY))
+EndMacro
+Macro GetCanvasWheelDelta(_Gadget)
+  (GetGadgetAttribute((_Gadget), #PB_Canvas_WheelDelta))
+EndMacro
+
+;-
+
 ;- ----- Network Functions -----
+
 CompilerIf (Not #KSL_ExcludeNetworkFunctions)
 
 Procedure.s ReceiveHTTPString(URL.s, Flags.i = #Null)
