@@ -243,22 +243,65 @@ CompilerEndIf
 #Magenta = $FF00FF
 #Yellow  = $00FFFF
 
+#PB_FileSize_Missing   = -1
+#PB_FileSize_Directory = -2
+
+#PB_Shortcut_Equal  = WindowsElse(#VK_OEM_PLUS,  '=')
+#PB_Shortcut_Hyphen = WindowsElse(#VK_OEM_MINUS, '-')
+
 ;-
 
 ;- ----- Dialog Functions -----
 
-Macro Info(_Text)
-  MessageRequester("Information", _Text, #PB_MessageRequester_Info)
-EndMacro
-Macro InfoI(_Integer)
-  MessageRequester("Information", Str(_Integer), #PB_MessageRequester_Info)
-EndMacro
-Macro Warn(_Text)
-  MessageRequester("Warning", _Text, #PB_MessageRequester_Warning)
-EndMacro
-Macro Error(_Text)
-  MessageRequester("Error", _Text, #PB_MessageRequester_Error)
-EndMacro
+CompilerIf (PBGTE(610))
+  Macro Info(_Text, _ParentID = #Null)
+    MessageRequester("Information", _Text, #PB_MessageRequester_Info, (_ParentID))
+  EndMacro
+  Macro InfoI(_Integer, _ParentID = #Null)
+    MessageRequester("Information", Str(_Integer), #PB_MessageRequester_Info, (_ParentID))
+  EndMacro
+  Macro Warn(_Text, _ParentID = #Null)
+    MessageRequester("Warning", _Text, #PB_MessageRequester_Warning, (_ParentID))
+  EndMacro
+  Macro Error(_Text, _ParentID = #Null)
+    MessageRequester("Error", _Text, #PB_MessageRequester_Error, (_ParentID))
+  EndMacro
+CompilerElse
+  Macro Info(_Text, _ParentID = #Null)
+    MessageRequester("Information", _Text, #PB_MessageRequester_Info)
+  EndMacro
+  Macro InfoI(_Integer, _ParentID = #Null)
+    MessageRequester("Information", Str(_Integer), #PB_MessageRequester_Info)
+  EndMacro
+  Macro Warn(_Text, _ParentID = #Null)
+    MessageRequester("Warning", _Text, #PB_MessageRequester_Warning)
+  EndMacro
+  Macro Error(_Text, _ParentID = #Null)
+    MessageRequester("Error", _Text, #PB_MessageRequester_Error)
+  EndMacro
+CompilerEndIf
+
+Procedure.i Confirm(Text.s, AllowCancel.i = #False, ParentID.i = #Null)
+  Protected Result.i
+  
+  Protected Flags.i
+  If (AllowCancel)
+    Flags = #PB_MessageRequester_YesNoCancel
+  Else
+    Flags = #PB_MessageRequester_YesNo
+  EndIf
+  CompilerIf (#Windows)
+    Flags | #MB_ICON_QUESTION
+  CompilerElse
+    Flags | #PB_MessageRequester_Info
+  CompilerEndIf
+  CompilerIf (PBGTE(610))
+    Result = MessageRequester("Confirm", Text, Flags, ParentID)
+  CompilerElse
+    Result = MessageRequester("Confirm", Text, Flags)
+  CompilerEndIf
+  ProcedureReturn (Result)
+EndProcedure
 
 ;-
 
