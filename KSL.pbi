@@ -381,6 +381,18 @@ EndMacro
 
 ;-
 
+;- ----- Color Functions -----
+
+Macro Opaque(_RGB)
+  ((_RGB) | $FF000000)
+EndMacro
+
+Macro Transparent(_RGB)
+  ((_RGB) & $00FFFFFF)
+EndMacro
+
+;-
+
 ;- ----- String Functions -----
 
 Enumeration
