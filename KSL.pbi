@@ -615,6 +615,46 @@ Macro FileExists(_File)
   (Bool(FileSize(_File) >= 0))
 EndMacro
 
+CompilerIf ((#Windows And (#True)) Or (#False))
+  Macro SameFile(_File1, _File2)
+    Bool(LCase(_File1) = LCase(_File2))
+  EndMacro
+CompilerElse
+  Macro SameFile(_File1, _File2)
+    Bool(_File1 = _File2)
+  EndMacro
+CompilerEndIf
+
+CompilerIf (#Windows)
+  Macro LaunchFile(_File)
+    RunProgram(_File)
+  EndMacro
+  Macro LaunchFolder(_Folder)
+    RunProgram(_Folder)
+  EndMacro
+CompilerElse
+  Macro LaunchFile(_File)
+    RunProgram("open", #DQ$ + _File + #DQ$, GetPathPart(_File))
+  EndMacro
+  Macro LaunchFolder(_Folder)
+    RunProgram("open", #DQ$ + _Folder + #DQ$, _Folder)
+  EndMacro
+CompilerEndIf
+
+Procedure ShowFileInExplorer(File.s)
+  If (File)
+    Protected Path.s = GetPathPart(File)
+    If (Path = "")
+      Path = GetCurrentDirectory()
+    EndIf
+    CompilerIf (#Windows)
+      RunProgram("explorer.exe", #DQUOTE$ + "/SELECT," + File + #DQUOTE$, Path)
+    CompilerElse
+      LaunchFolder(Path)
+    CompilerEndIf
+  EndIf
+EndProcedure
+
 Procedure.s NormalizePathSeparators(Path.s, SeparatorToUse.s = #PS$)
   Select (SeparatorToUse)
     Case "/"
@@ -645,6 +685,24 @@ Procedure.s EnsurePathSeparator(Path.s)
     CompilerEndIf
   EndIf
   ProcedureReturn (Path)
+EndProcedure
+
+Procedure.s RemovePathSeparator(Path.s)
+  If (Path)
+    CompilerIf (#Windows Or (#False))
+      While (EndsWith(Path, #PS$) Or EndsWith(Path, #NPS$))
+        Path = RTrim(Path, #PS$)
+        Path = RTrim(Path, #NPS$)
+      EndIf
+    CompilerElse
+      Path = RTrim(Path, #PS$)
+    CompilerEndIf
+  EndIf
+  ProcedureReturn (Path)
+EndProcedure
+
+Procedure.s GetTopDirectoryName(Directory.s)
+  ProcedureReturn (GetFilePart(RemovePathSeparator(Directory)))
 EndProcedure
 
 Procedure.s GetParentDirectory(Directory.s)
