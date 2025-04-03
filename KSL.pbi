@@ -293,7 +293,7 @@ Procedure.i Confirm(Text.s, AllowCancel.i = #False, ParentID.i = #Null)
   CompilerIf (#Windows)
     Flags | #MB_ICON_QUESTION
   CompilerElse
-    Flags | #PB_MessageRequester_Info
+    Flags | #PB_MessageRequester_Warning;#PB_MessageRequester_Info
   CompilerEndIf
   CompilerIf (PBGTE(610))
     Result = MessageRequester("Confirm", Text, Flags, ParentID)
@@ -758,6 +758,27 @@ EndMacro
 
 ;-
 
+;- ----- Preference Functions -----
+
+Procedure WritePreferenceBool(Key.s, Value.i)
+  WritePreferenceInteger(Key, Bool(Value))
+EndProcedure
+
+Procedure.i ReadPreferenceBool(Key.s, DefaultValue.i)
+  Protected Result.i
+  Select (LCase(Trim(ReadPreferenceString(Key, ""))))
+    Case "1", "t", "true", "y", "yes", "on", "en", "enable", "enabled"
+      Result = #True
+    Case "0", "f", "false", "n", "no", "off", "dis", "disable", "disabled"
+      Result = #False
+    Default
+      Result = DefaultValue
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
+;-
+
 ;- ----- Network Functions -----
 
 CompilerIf (Not #KSL_ExcludeNetworkFunctions)
@@ -827,6 +848,8 @@ CompilerEndIf
 ;- ----- OS-Specific Initialization -----
 
 CompilerIf (#Linux)
+
+#GDK_LEFTTAB = $FE20
 
 CompilerIf (#True)
   ;
