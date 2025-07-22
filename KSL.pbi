@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20241018
+#KSL_Version = 20250602
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -161,6 +161,8 @@ CompilerEndIf
 ;-
 
 ;- ----- Build Info -----
+
+#Debugger = #PB_Compiler_Debugger
 
 CompilerIf (#PB_Compiler_ExecutableFormat = #PB_Compiler_Console)
   #Console = #True
@@ -348,6 +350,13 @@ Procedure.d MinD(a.d, b.d)
   ProcedureReturn (b)
 EndProcedure
 
+Procedure.i RandomBool(PercentTrue.i)
+  If (Random(99, 0) < PercentTrue)
+    ProcedureReturn (#True)
+  EndIf
+  ProcedureReturn (#False)
+EndProcedure
+
 ;-
 
 ;- ----- Time Functions -----
@@ -393,6 +402,14 @@ EndMacro
 
 ;-
 
+;- ----- List Functions -----
+
+Macro SelectRandomElement(_List)
+  SelectElement(_List, Random(ListSize(_List) - 1))
+EndMacro
+
+;-
+
 ;- ----- String Functions -----
 
 Enumeration
@@ -412,6 +429,15 @@ Macro AddString(_List, _String)
   _List = _String
 EndMacro
 
+Procedure.s RandomString(List StrList.s())
+  Protected Result.s = ""
+  PushListPosition(StrList())
+  SelectRandomElement(StrList())
+  Result = StrList()
+  PopListPosition(StrList())
+  ProcedureReturn (Result)
+EndProcedure
+
 Macro StartsWith(_String, _Prefix)
   (Bool(Left((_String), Len(_Prefix)) = (_Prefix)))
 EndMacro
@@ -421,6 +447,56 @@ EndMacro
 Macro Contains(_String, _Substring)
   (Bool(FindString((_String), (_Substring)) > 0))
 EndMacro
+
+Procedure.s Before(String.s, Suffix.s)
+  Protected Result.s
+  If (String And Suffix)
+    Protected i.i = FindString(String, Suffix)
+    If (i)
+      Result = Left(String, i-1)
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s After(String.s, Prefix.s)
+  Protected Result.s
+  If (String And Prefix)
+    Protected i.i = FindString(String, Prefix)
+    If (i)
+      Result = Mid(String, i + Len(Prefix))
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s Between(String.s, Prefix.s, Suffix.s)
+  Protected Result.s
+  String = After(String, Prefix)
+  Result = Before(String, Suffix)
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i FindStringOccurrence(String.s, StringToFind.s, Occurrence.i, Mode.i = #PB_String_CaseSensitive)
+  Protected Result.i = 0
+  Protected Found.i  = 0
+  Protected i.i = 1
+  While (Found < Occurrence)
+    i = FindString(String, StringToFind, i, Mode)
+    If (i)
+      Found + 1
+      If (Found = Occurrence)
+        Result = i
+        Break
+      Else
+        i + Len(StringToFind)
+      EndIf
+    Else
+      Break
+    EndIf
+  Wend
+  ProcedureReturn (Result)
+EndProcedure
 
 Procedure.s LTrimWhitespace(String.s)
   Protected *C.CHARACTER = @String
@@ -625,36 +701,6 @@ CompilerElse
   EndMacro
 CompilerEndIf
 
-CompilerIf (#Windows)
-  Macro LaunchFile(_File)
-    RunProgram(_File)
-  EndMacro
-  Macro LaunchFolder(_Folder)
-    RunProgram(_Folder)
-  EndMacro
-CompilerElse
-  Macro LaunchFile(_File)
-    RunProgram("open", #DQ$ + _File + #DQ$, GetPathPart(_File))
-  EndMacro
-  Macro LaunchFolder(_Folder)
-    RunProgram("open", #DQ$ + _Folder + #DQ$, _Folder)
-  EndMacro
-CompilerEndIf
-
-Procedure ShowFileInExplorer(File.s)
-  If (File)
-    Protected Path.s = GetPathPart(File)
-    If (Path = "")
-      Path = GetCurrentDirectory()
-    EndIf
-    CompilerIf (#Windows)
-      RunProgram("explorer.exe", #DQUOTE$ + "/SELECT," + File + #DQUOTE$, Path)
-    CompilerElse
-      LaunchFolder(Path)
-    CompilerEndIf
-  EndIf
-EndProcedure
-
 Procedure.s NormalizePathSeparators(Path.s, SeparatorToUse.s = #PS$)
   Select (SeparatorToUse)
     Case "/"
@@ -734,6 +780,80 @@ EndProcedure
 
 Procedure.s GetMusicDirectory()
   ProcedureReturn (GetUserDirectory(#PB_Directory_Musics))
+EndProcedure
+
+Procedure.s FindFirstFile(Pattern.s, Directory.s = "")
+  Protected Result.s = ""
+  If (Directory = "")
+    Directory = GetCurrentDirectory()
+  EndIf
+  Protected DN.i = ExamineDirectory(#PB_Any, Directory, Pattern)
+  If (DN)
+    While (NextDirectoryEntry(DN))
+      If (DirectoryEntryType(DN) = #PB_DirectoryEntry_File)
+        Result = DirectoryEntryName(DN)
+        Break
+      EndIf
+    Wend
+    FinishDirectory(DN)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+;-
+
+;- ----- File/Folder Functions -----
+
+CompilerIf (#Windows)
+  Macro LaunchFile(_File)
+    RunProgram(_File)
+  EndMacro
+  Macro LaunchFolder(_Folder)
+    RunProgram(_Folder)
+  EndMacro
+CompilerElse
+  Macro LaunchFile(_File)
+    RunProgram("open", #DQ$ + _File + #DQ$, GetPathPart(_File))
+  EndMacro
+  Macro LaunchFolder(_Folder)
+    RunProgram("open", #DQ$ + _Folder + #DQ$, _Folder)
+  EndMacro
+CompilerEndIf
+
+Procedure ShowFileInExplorer(File.s)
+  If (File)
+    Protected Path.s = GetPathPart(File)
+    If (Path = "")
+      Path = GetCurrentDirectory()
+    EndIf
+    CompilerIf (#Windows)
+      RunProgram("explorer.exe", #DQUOTE$ + "/SELECT," + File + #DQUOTE$, Path)
+    CompilerElse
+      LaunchFolder(Path)
+    CompilerEndIf
+  EndIf
+EndProcedure
+
+Procedure.i ReadFileInteger(File.s)
+  Protected Result.i = 0
+  Protected FN.i = ReadFile(#PB_Any, File)
+  If (FN)
+    ReadStringFormat(FN)
+    Result = Val(ReadString(FN))
+    CloseFile(FN)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i WriteFileInteger(File.s, Value.i)
+  Protected Result.i = #False
+  Protected FN.i = CreateFile(#PB_Any, File)
+  If (FN)
+    WriteStringN(FN, Str(Value))
+    CloseFile(FN)
+    Result = #True
+  EndIf
+  ProcedureReturn (Result)
 EndProcedure
 
 ;-
