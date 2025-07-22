@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20250602
+#KSL_Version = 20250721
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -860,20 +860,56 @@ EndProcedure
 
 ;- ----- Gadget Functions -----
 
-Macro GetCanvasKey(_Gadget)
-  (GetGadgetAttribute((_Gadget), #PB_Canvas_Key))
+Macro MoveGadget(_Gadget, _x, _y)
+  ResizeGadget((_Gadget), (_x), (_y), #PB_Ignore, #PB_Ignore)
 EndMacro
-Macro GetCanvasModifiers(_Gadget)
-  (GetGadgetAttribute((_Gadget), #PB_Canvas_Modifiers))
+Macro SetGadgetSize(_Gadget, _Width, _Height)
+  ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, (_Width), (_Height))
 EndMacro
-Macro GetCanvasMouseX(_Gadget)
-  (GetGadgetAttribute((_Gadget), #PB_Canvas_MouseX))
+Macro GadgetExtentX(_Gadget)
+  (GadgetX(_Gadget) + GadgetWidth(_Gadget))
 EndMacro
-Macro GetCanvasMouseY(_Gadget)
-  (GetGadgetAttribute((_Gadget), #PB_Canvas_MouseY))
+Macro GadgetExtentY(_Gadget)
+  (GadgetY(_Gadget) + GadgetHeight(_Gadget))
 EndMacro
-Macro GetCanvasWheelDelta(_Gadget)
-  (GetGadgetAttribute((_Gadget), #PB_Canvas_WheelDelta))
+
+Macro GadgetRequiredWidth(_Gadget)
+  (GadgetWidth((_Gadget), #PB_Gadget_RequiredSize))
+EndMacro
+Macro GadgetRequiredHeight(_Gadget)
+  (GadgetHeight((_Gadget), #PB_Gadget_RequiredSize))
+EndMacro
+Macro FitGadgetWidth(_Gadget)
+  ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, GadgetRequiredWidth(_Gadget), #PB_Ignore)
+EndMacro
+Macro FitGadgetHeight(_Gadget)
+  ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, #PB_Ignore, GadgetRequiredHeight(_Gadget))
+EndMacro
+Macro FitGadgetSize(_Gadget)
+  SetGadgetSize((_Gadget), GadgetRequiredWidth(_Gadget), GadgetRequiredHeight(_Gadget))
+EndMacro
+
+Macro GetCanvasKey(_CanvasGadget)
+  (GetGadgetAttribute((_CanvasGadget), #PB_Canvas_Key))
+EndMacro
+Macro GetCanvasModifiers(_CanvasGadget)
+  (GetGadgetAttribute((_CanvasGadget), #PB_Canvas_Modifiers))
+EndMacro
+Macro GetCanvasMouseX(_CanvasGadget)
+  (GetGadgetAttribute((_CanvasGadget), #PB_Canvas_MouseX))
+EndMacro
+Macro GetCanvasMouseY(_CanvasGadget)
+  (GetGadgetAttribute((_CanvasGadget), #PB_Canvas_MouseY))
+EndMacro
+Macro GetCanvasWheelDelta(_CanvasGadget)
+  (GetGadgetAttribute((_CanvasGadget), #PB_Canvas_WheelDelta))
+EndMacro
+
+Macro GetPanelWidth(_PanelGadget)
+  (GetGadgetAttribute(((_PanelGadget), #PB_Panel_ItemWidth)))
+EndMacro
+Macro GetPanelHeight(_PanelGadget)
+  (GetGadgetAttribute(((_PanelGadget), #PB_Panel_ItemHeight)))
 EndMacro
 
 ;-
