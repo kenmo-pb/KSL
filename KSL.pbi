@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20250721
+#KSL_Version = 20250723
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -194,10 +194,12 @@ CompilerIf (#PB_Compiler_64Bit)
   #BitString$       = "64-bit"
   #ProcessorString$ = "x64"
   #IntSize          = 8
+  #Is64Bit          = #True
 CompilerElse
   #BitString$       = "32-bit"
   #ProcessorString$ = "x86"
   #IntSize          = 4
+  #Is64Bit          = #False
 CompilerEndIf
 
 CompilerIf (PBGTE(600))
@@ -245,8 +247,12 @@ CompilerEndIf
 #Magenta = $FF00FF
 #Yellow  = $00FFFF
 
+;#PB_FileSize_Zero      =  0
 #PB_FileSize_Missing   = -1
 #PB_FileSize_Directory = -2
+
+#CurrentDirectoryName = "."
+#ParentDirectoryName  = ".."
 
 #PB_Shortcut_Equal  = WindowsElse(#VK_OEM_PLUS,  '=')
 #PB_Shortcut_Hyphen = WindowsElse(#VK_OEM_MINUS, '-')
@@ -293,7 +299,7 @@ Procedure.i Confirm(Text.s, AllowCancel.i = #False, ParentID.i = #Null)
     Flags = #PB_MessageRequester_YesNo
   EndIf
   CompilerIf (#Windows)
-    Flags | #MB_ICON_QUESTION
+    Flags | #MB_ICONQUESTION
   CompilerElse
     Flags | #PB_MessageRequester_Warning;#PB_MessageRequester_Info
   CompilerEndIf
@@ -429,15 +435,6 @@ Macro AddString(_List, _String)
   _List = _String
 EndMacro
 
-Procedure.s RandomString(List StrList.s())
-  Protected Result.s = ""
-  PushListPosition(StrList())
-  SelectRandomElement(StrList())
-  Result = StrList()
-  PopListPosition(StrList())
-  ProcedureReturn (Result)
-EndProcedure
-
 Macro StartsWith(_String, _Prefix)
   (Bool(Left((_String), Len(_Prefix)) = (_Prefix)))
 EndMacro
@@ -447,6 +444,48 @@ EndMacro
 Macro Contains(_String, _Substring)
   (Bool(FindString((_String), (_Substring)) > 0))
 EndMacro
+
+Macro Quote(_String)
+  #DQ$ + _String + #DQ$
+EndMacro
+
+Macro SQuote(_String)
+  #SQ$ + _String + #SQ$
+EndMacro
+
+Macro SDQuote(_String)
+  ReplaceString(_String, #SQ$, #DQ$)
+EndMacro
+Macro SDQuoteInPlace(_String)
+  ReplaceString(_String, #SQ$, #DQ$, #PB_String_InPlace)
+EndMacro
+
+Procedure.s QuoteIfSpaces(Text.s, QuoteEmptyString.i = #False)
+  If (FindString(Text, " ") Or (QuoteEmptyString And (Text = "")))
+    Text = Quote(Text)
+  EndIf
+  ProcedureReturn (Text)
+EndProcedure
+
+Procedure.s Plural(N.i, Singular.s, Multiple.s = "")
+  If (N = 1)
+    ProcedureReturn (Str(N) + " " + Singular)
+  Else
+    If (Multiple = "")
+      Multiple = Singular + "s"
+    EndIf
+    ProcedureReturn (Str(N) + " " + Multiple)
+  EndIf
+EndProcedure
+
+Procedure.s RandomString(List StrList.s())
+  Protected Result.s = ""
+  PushListPosition(StrList())
+  SelectRandomElement(StrList())
+  Result = StrList()
+  PopListPosition(StrList())
+  ProcedureReturn (Result)
+EndProcedure
 
 Procedure.s Before(String.s, Suffix.s)
   Protected Result.s
@@ -691,6 +730,10 @@ Macro FileExists(_File)
   (Bool(FileSize(_File) >= 0))
 EndMacro
 
+Macro FileOrFolderExists(_Path)
+  (Bool(FileSize(_Path) <> #PB_FileSize_Missing))
+EndMacro
+
 CompilerIf ((#Windows And (#True)) Or (#False))
   Macro SameFile(_File1, _File2)
     Bool(LCase(_File1) = LCase(_File2))
@@ -700,6 +743,56 @@ CompilerElse
     Bool(_File1 = _File2)
   EndMacro
 CompilerEndIf
+
+Macro RemoveExtensionPart(_File)
+  SetExtensionPart((_File), "")
+EndMacro
+
+Procedure.i DeleteFolder(Folder.s, Force.i = #True)
+  Protected Result.i = #False
+  If (Folder)
+    DeleteDirectory(Folder, "", #PB_FileSystem_Recursive | (Bool(Force) * #PB_FileSystem_Force))
+    Result = Bool(FileSize(Folder) = #PB_FileSize_Missing)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i DeleteFileOrFolder(Path.s, Force.i = #True)
+  Protected Result.i = #False
+  If (Path)
+    Select (FileSize(Path))
+      Case #PB_FileSize_Missing
+        Result = #True
+      Case #PB_FileSize_Directory
+        DeleteDirectory(Path, "", #PB_FileSystem_Recursive | (Bool(Force) * #PB_FileSystem_Force))
+        Result = Bool(FileSize(Path) = #PB_FileSize_Missing)
+      Default
+        DeleteFile(Path, Bool(Force) * #PB_FileSystem_Force)
+        Result = Bool(FileSize(Path) = #PB_FileSize_Missing)
+    EndSelect
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s SetExtensionPart(File.s, NewExtension.s)
+  Protected Result.s = ""
+  If (File)
+    Result = GetPathPart(File)
+    File = GetFilePart(File)
+    If (GetExtensionPart(File) = "")
+      If (NewExtension)
+        File + "." + NewExtension
+      EndIf
+    Else
+      File = GetFilePart(File, #PB_FileSystem_NoExtension)
+      If (NewExtension)
+        File + "." + NewExtension
+      EndIf
+    EndIf
+    Result + File
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
 
 Procedure.s NormalizePathSeparators(Path.s, SeparatorToUse.s = #PS$)
   Select (SeparatorToUse)
@@ -739,10 +832,44 @@ Procedure.s RemovePathSeparator(Path.s)
       While (EndsWith(Path, #PS$) Or EndsWith(Path, #NPS$))
         Path = RTrim(Path, #PS$)
         Path = RTrim(Path, #NPS$)
-      EndIf
+      Wend
     CompilerElse
       Path = RTrim(Path, #PS$)
     CompilerEndIf
+  EndIf
+  ProcedureReturn (Path)
+EndProcedure
+
+Procedure.i IsAbsolutePath(Path.s)
+  Protected Result.i = #False
+  If (Path)
+    CompilerIf (#Windows)
+      If (FindString(Path, ":"))
+        Result = #True
+      EndIf
+    CompilerElse
+      If (Left(Path, 1) = "/")
+        Result = #True
+      ElseIf (Left(Path, 1) = "~")
+        Result = #True
+      EndIf
+    CompilerEndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s EnsureAbsolutePath(Path.s, RootDir.s = "")
+  If (Not IsAbsolutePath(Path))
+    If (RootDir = "")
+      RootDir = GetCurrentDirectory()
+    Else
+      RootDir = EnsurePathSeparator(RootDir)
+    EndIf
+    CompilerIf (#Windows)
+      Path = LTrim(Path, #PS$)
+      Path = LTrim(Path, #NPS$)
+    CompilerEndIf
+    Path = RootDir + Path
   EndIf
   ProcedureReturn (Path)
 EndProcedure
@@ -752,14 +879,104 @@ Procedure.s GetTopDirectoryName(Directory.s)
 EndProcedure
 
 Procedure.s GetParentDirectory(Directory.s)
-  If (Directory)
-    CompilerIf (#Windows Or (#True))
-      Directory = RTrim(Directory, "\")
-    CompilerEndIf
-    Directory = RTrim(Directory, "/")
-    Directory = GetPathPart(Directory)
+  ProcedureReturn (GetPathPart(RemovePathSeparator(Directory)))
+EndProcedure
+
+Procedure.s NormalizePath(Path.s)
+  Protected Result.s = ""
+  If (Path)
+    Path = NormalizePathSeparators(Path, #PS$)
+    Protected IsAbsolute.i = IsAbsolutePath(Path)
+    Protected File.s = GetFilePart(Path)
+    Path = GetPathPart(Path)
+    If (File = #CurrentDirectoryName)
+      File = ""
+    ElseIf (File = #ParentDirectoryName)
+      File = ""
+      Path + #ParentDirectoryName + #PS$
+    EndIf
+    If (Path)
+      Protected ExtraParents.i = 0
+      Protected N.i = 1 + CountString(Path, #PS$)
+      Protected i.i
+      For i = 1 To N
+        Protected Term.s = StringField(Path, i, #PS$)
+        If (Term <> "")
+          If (Term = #CurrentDirectoryName)
+            ; ignore
+          ElseIf (Term = #ParentDirectoryName)
+            If (IsAbsolute)
+              Result = GetParentDirectory(Result)
+              If (Result = "")
+                Result = ""
+                File = ""
+                ExtraParents = 0
+                Break
+              Else
+                ; OK
+              EndIf
+            Else
+              If (Result)
+                Result = GetParentDirectory(Result)
+              Else
+                ExtraParents + 1
+              EndIf
+            EndIf
+          Else
+            Result + Term + #PS$
+          EndIf
+        Else
+          If (i = 1)
+            Result + #PS$
+          Else
+            ; ignore
+          EndIf
+        EndIf
+      Next i
+      While (ExtraParents > 0)
+        Result = #ParentDirectoryName + #PS$ + Result
+        ExtraParents - 1
+      Wend
+    EndIf
+    Result + File
   EndIf
-  ProcedureReturn (Directory)
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s MakeRelativePath(Path.s, RootDir.s)
+  Protected Result.s = ""
+  If (Path And RootDir)
+    Protected IsAbsolute.i = #False
+    If (IsAbsolutePath(Path) And IsAbsolutePath(RootDir))
+      IsAbsolute = #True
+    EndIf
+    Path    = NormalizePath(Path)
+    RootDir = EnsurePathSeparator(NormalizePath(RootDir))
+    If (Path And RootDir)
+      If (Path = RootDir)
+        ; exact match - result is empty string
+      Else
+        Protected Prefix.s = ""
+        While (#True)
+          If (SameFile(Left(Path, Len(RootDir)), RootDir))
+            Result = Mid(Path, 1 + Len(RootDir))
+            Break
+          Else
+            RootDir = GetParentDirectory(RootDir)
+            If (IsAbsolute And (RootDir = ""))
+              Result = ""
+              Prefix = ""
+              Break
+            Else
+              Prefix + #ParentDirectoryName + #PS$
+            EndIf
+          EndIf
+        Wend
+        Result = Prefix + Result
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
 EndProcedure
 
 Procedure.s GetProgramDirectory()
@@ -827,7 +1044,7 @@ Procedure ShowFileInExplorer(File.s)
       Path = GetCurrentDirectory()
     EndIf
     CompilerIf (#Windows)
-      RunProgram("explorer.exe", #DQUOTE$ + "/SELECT," + File + #DQUOTE$, Path)
+      RunProgram("explorer.exe", "/SELECT," + #DQ$ + File + #DQ$, Path)
     CompilerElse
       LaunchFolder(Path)
     CompilerEndIf
