@@ -241,6 +241,25 @@ CompilerEndIf
 
 #LFLF$ = #LF$ + #LF$
 
+#NBSP  = $A0
+#NBSP$ = Chr(#NBSP)
+
+#Euro  = $20AC
+#Euro$ = Chr($20AC)
+
+#BOM   = $FEFF
+#BOM$  = Chr(#BOM)
+#NBOM  = $FFFE
+#NBOM$ = Chr(#NBOM)
+
+#VS15  = $FE0E
+#VS15$ = Chr(#VS15) ; Text Variant
+#VS16  = $FE0F
+#VS16$ = Chr(#VS16) ; Emoji Variant
+
+#ReplacementChar  = $FFFD
+#ReplacementChar$ = Chr(#ReplacementChar)
+
 #Black   = $000000
 #White   = $FFFFFF
 #Red     = $0000FF
@@ -487,11 +506,49 @@ Macro SDQuoteInPlace(_String)
   ReplaceString(_String, #SQ$, #DQ$, #PB_String_InPlace)
 EndMacro
 
+Macro TextVariant(_CharStr)
+  RTrim(RTrim((_CharStr), #VS15$), #VS16$) + #VS15$
+EndMacro
+Macro EmojiVariant(_CharStr)
+  RTrim(RTrim((_CharStr), #VS15$), #VS16$) + #VS16$
+EndMacro
+
+Procedure.s Unquote(Text.s, Character.s = "")
+  If (Len(Character) = 1)
+    If ((Left(Text, 1) = Character) And (Right(Text, 1) = Character))
+      Text = Mid(Text, 2, Len(Text) - 2)
+    EndIf
+  Else
+    If ((Left(Text, 1) = #DQ$) And (Right(Text, 1) = #DQ$))
+      Text = Mid(Text, 2, Len(Text) - 2)
+    ElseIf ((Left(Text, 1) = #SQ$) And (Right(Text, 1) = #SQ$))
+      Text = Mid(Text, 2, Len(Text) - 2)
+    EndIf
+  EndIf
+  ProcedureReturn (Text)
+EndProcedure
+
 Procedure.s QuoteIfSpaces(Text.s, QuoteEmptyString.i = #False)
   If (FindString(Text, " ") Or (QuoteEmptyString And (Text = "")))
     Text = Quote(Text)
   EndIf
   ProcedureReturn (Text)
+EndProcedure
+
+Procedure.s ChrU(Value.i)
+  CompilerIf (#Unicode)
+    If (Value > $FFFF)
+      Protected Result.s = "  "
+      Value = (Value - $10000)
+      PokeU(@Result + 0, $D800 + (Value >> 10) & $03FF)
+      PokeU(@Result + 2, $DC00 + (Value >>  0) & $03FF)
+      ProcedureReturn (Result)
+    Else
+      ProcedureReturn (Chr(Value))
+    EndIf
+  CompilerElse
+    ProcedureReturn (Chr(Value))
+  CompilerEndIf
 EndProcedure
 
 Procedure.s Plural(N.i, Singular.s, Multiple.s = "")
@@ -1061,10 +1118,10 @@ CompilerIf (#Windows)
   EndMacro
 CompilerElse
   Macro LaunchFile(_File)
-    RunProgram("open", #DQ$ + _File + #DQ$, GetPathPart(_File))
+    RunProgram("open", Quote(_File), GetPathPart(_File))
   EndMacro
   Macro LaunchFolder(_Folder)
-    RunProgram("open", #DQ$ + _Folder + #DQ$, _Folder)
+    RunProgram("open", Quote(_Folder), _Folder)
   EndMacro
 CompilerEndIf
 
@@ -1075,7 +1132,7 @@ Procedure ShowFileInExplorer(File.s)
       Path = GetCurrentDirectory()
     EndIf
     CompilerIf (#Windows)
-      RunProgram("explorer.exe", "/SELECT," + #DQ$ + File + #DQ$, Path)
+      RunProgram("explorer.exe", "/SELECT," + Quote(File), Path)
     CompilerElse
       LaunchFolder(Path)
     CompilerEndIf
