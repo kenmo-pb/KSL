@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20250723
+#KSL_Version = 20250725
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -162,12 +162,13 @@ CompilerEndIf
 
 ;- ----- Build Info -----
 
-#Debugger = #PB_Compiler_Debugger
+#Debugger   = #PB_Compiler_Debugger
+#ThreadSafe = #PB_Compiler_Thread
 
 CompilerIf (#PB_Compiler_ExecutableFormat = #PB_Compiler_Console)
-  #Console = #True
+  #ConsoleMode = #True
 CompilerElse
-  #Console = #False
+  #ConsoleMode = #False
 CompilerEndIf
 
 CompilerIf (#PB_Compiler_Unicode)
@@ -194,11 +195,13 @@ CompilerIf (#PB_Compiler_64Bit)
   #BitString$       = "64-bit"
   #ProcessorString$ = "x64"
   #IntSize          = 8
+  #Is32Bit          = #False
   #Is64Bit          = #True
 CompilerElse
   #BitString$       = "32-bit"
   #ProcessorString$ = "x86"
   #IntSize          = 4
+  #Is32Bit          = #True
   #Is64Bit          = #False
 CompilerEndIf
 
@@ -316,6 +319,30 @@ EndProcedure
 ;- ----- Math Functions -----
 
 #TwoPi = (2.0 * #PI)
+
+Procedure.i _IIfI(Boolean.i, ValueIfTrue.i, ValueIfFalse.i)
+  If (Boolean)
+    ProcedureReturn  (ValueIfTrue)
+  Else
+    ProcedureReturn  (ValueIfFalse)
+  EndIf
+EndProcedure
+
+Procedure.s _IIfS(Boolean.i, ValueIfTrue.s, ValueIfFalse.s)
+  If (Boolean)
+    ProcedureReturn  (ValueIfTrue)
+  Else
+    ProcedureReturn  (ValueIfFalse)
+  EndIf
+EndProcedure
+
+Macro IIfI(_Expression, _IntIfTrue, _IntIfFalse)
+  _IIfI(Bool(_Expression), (_IntIfTrue), (_IntIfFalse))
+EndMacro
+
+Macro IIfS(_Expression, _StringIfTrue, _StringIfFalse)
+  _IIfS(Bool(_Expression), (_StringIfTrue), (_StringIfFalse))
+EndMacro
 
 Procedure.i MaxI(a.i, b.i)
   If (a > b)
@@ -1020,6 +1047,10 @@ EndProcedure
 ;-
 
 ;- ----- File/Folder Functions -----
+
+Macro GetModifiedDate(_File)
+  GetFileDate((_File), #PB_Date_Modified)
+EndMacro
 
 CompilerIf (#Windows)
   Macro LaunchFile(_File)
