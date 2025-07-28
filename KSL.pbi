@@ -469,6 +469,14 @@ Enumeration
   #KSL_ExcludeWhitespace = $0002
 EndEnumeration
 
+Global Dim _StrBool.s((2)-1)
+_StrBool(0) = "false"
+_StrBool(1) = "true"
+
+Macro StrBool(_Expr)
+  _StrBool(Bool(_Expr))
+EndMacro
+
 Macro BytesToChars(_Bytes)
   ((_Bytes) / #CharSize)
 EndMacro
@@ -1139,6 +1147,43 @@ Procedure ShowFileInExplorer(File.s)
   EndIf
 EndProcedure
 
+Procedure.s ReadFileToString(File.s)
+  Protected Result.s = ""
+  Protected FN.i = ReadFile(#PB_Any, File)
+  If (FN)
+    Protected Format.i = ReadStringFormat(FN)
+    Select (Format)
+      Case #PB_Ascii, #PB_UTF8, #PB_Unicode
+        Result = ReadString(FN, Format | #PB_File_IgnoreEOL)
+    EndSelect
+    CloseFile(FN)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i CreateFileFromString(File.s, String.s, Format.i = #PB_Default, WriteBOM.i = #PB_Default)
+  Protected Result.i = #False
+  If (Format = #PB_Default)
+    Format = #PB_UTF8
+  EndIf
+  If (WriteBOM = #PB_Default)
+    WriteBOM = Bool(Format = #PB_Unicode)
+  EndIf
+  Select (Format)
+    Case #PB_Ascii, #PB_UTF8, #PB_Unicode
+      Protected FN.i = CreateFile(#PB_Any, File)
+      If (FN)
+        If (WriteBOM)
+          WriteStringFormat(FN, Format)
+        EndIf
+        WriteString(FN, String, Format)
+        CloseFile(FN)
+        Result = #True
+      EndIf
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
 Procedure.i ReadFileInteger(File.s)
   Protected Result.i = 0
   Protected FN.i = ReadFile(#PB_Any, File)
@@ -1164,6 +1209,10 @@ EndProcedure
 ;-
 
 ;- ----- Gadget Functions -----
+
+Macro SelectGadget(_Gadget)
+  WindowsElse(SendMessage_(GadgetID(_Gadget), #EM_SETSEL, 0, -1), SetActiveGadget(_Gadget))
+EndMacro
 
 Macro MoveGadget(_Gadget, _x, _y)
   ResizeGadget((_Gadget), (_x), (_y), #PB_Ignore, #PB_Ignore)
