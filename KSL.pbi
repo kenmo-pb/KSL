@@ -1091,6 +1091,20 @@ Procedure.s GetMusicDirectory()
   ProcedureReturn (GetUserDirectory(#PB_Directory_Musics))
 EndProcedure
 
+Procedure.i CreateDirectoryRecursive(Path.s)
+  Protected Result.i = #False
+  If (Path)
+    If (FileSize(Path) = -1)
+      Path = EnsurePathSeparator(NormalizePath(Path))
+      If (CreateDirectoryRecursive(GetParentDirectory(Path)))
+        CreateDirectory(Path)
+      EndIf
+    EndIf
+    Result = Bool(FileSize(Path) = -2)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
 Procedure.s FindFirstFile(Pattern.s, Directory.s = "")
   Protected Result.s = ""
   If (Directory = "")
@@ -1210,10 +1224,6 @@ EndProcedure
 
 ;- ----- Gadget Functions -----
 
-Macro SelectGadget(_Gadget)
-  WindowsElse(SendMessage_(GadgetID(_Gadget), #EM_SETSEL, 0, -1), SetActiveGadget(_Gadget))
-EndMacro
-
 Macro MoveGadget(_Gadget, _x, _y)
   ResizeGadget((_Gadget), (_x), (_y), #PB_Ignore, #PB_Ignore)
 EndMacro
@@ -1265,6 +1275,13 @@ EndMacro
 Macro GetPanelHeight(_PanelGadget)
   (GetGadgetAttribute(((_PanelGadget), #PB_Panel_ItemHeight)))
 EndMacro
+
+Procedure SelectGadget(Gadget.i)
+  CompilerIf (#Windows)
+    SendMessage_(GadgetID(Gadget), #EM_SETSEL, 0, -1)
+  CompilerEndIf
+  SetActiveGadget(Gadget)
+EndProcedure
 
 ;-
 
@@ -1357,6 +1374,124 @@ CompilerEndIf
 
 ;- ----- OS-Specific Initialization -----
 
+
+;- - Windows
+CompilerIf (#Windows)
+
+CompilerIf (Not Defined(COMBOBOXINFO, #PB_Structure))
+Structure COMBOBOXINFO
+  cbSize.l
+  rcItem.RECT
+  rcButton.RECT
+  stateButton.l
+  hwndCombo.i
+  hwndEdit.i
+  hwndList.i
+EndStructure
+CompilerEndIf
+
+Procedure.i _StringGadgetWithCtrlBackspaceEntire(hWnd.i, uMsg.i, wParam.i, lParam.i)
+  If ((uMsg = #WM_CHAR) And (wParam = #DEL))
+    ProcedureReturn (SendMessage_(hWnd, #WM_SETTEXT, #Null, #Null$))
+  Else
+    ProcedureReturn (CallFunctionFast(GetWindowLongPtr_(hWnd, #GWLP_USERDATA), hWnd, uMsg, wParam, lParam))
+  EndIf
+EndProcedure
+
+Procedure.i _StringGadgetWithCtrlBackspace(hWnd.i, uMsg.i, wParam.i, lParam.i)
+  If ((uMsg = #WM_CHAR) And (wParam = #DEL))
+    Protected N.i = SendMessage_(hWnd, #WM_GETTEXTLENGTH, 0, 0)
+    If (N > 0)
+      Protected Text.s = Space(N)
+      SendMessage_(hWnd, #WM_GETTEXT, N + 1, @Text)
+      Protected StartPos.i, EndPos.i
+      SendMessage_(hWnd, #EM_GETSEL, @StartPos, @EndPos)
+      If ((StartPos >= 1) And (StartPos = EndPos))
+        StartPos - 1
+        Protected HaveSeenChars.i = #False
+        While (#True)
+          Select (PeekC(@Text + (StartPos * SizeOf(CHARACTER))))
+            Case ' ', #TAB, #CR, #LF
+              If (HaveSeenChars)
+                StartPos + 1
+                Break
+              EndIf
+            Case #NUL
+              Break
+            Default
+              HaveSeenChars = #True
+          EndSelect
+          If (StartPos = 0)
+            Break
+          Else
+            StartPos - 1
+          EndIf
+        Wend
+        SendMessage_(hWnd, #EM_SETSEL, StartPos, EndPos)
+      EndIf
+      If (EndPos > StartPos)
+        ProcedureReturn (SendMessage_(hWnd, #EM_REPLACESEL, #True, #Null$))
+      Else
+        ProcedureReturn (#Null)
+      EndIf
+    EndIf
+  Else
+    ProcedureReturn (CallFunctionFast(GetWindowLongPtr_(hWnd, #GWLP_USERDATA), hWnd, uMsg, wParam, lParam))
+  EndIf
+EndProcedure
+
+Procedure.i StringGadgetWithCtrlBackspace(Gadget.i, x.i, y.i, Width.i, Height.i, Content.s, Flags.i = #Null)
+  Protected Result.i = StringGadget(Gadget, x, y, Width, Height, Content, Flags)
+  If (Result)
+    If (Gadget = #PB_Any)
+      Gadget = Result
+    EndIf
+    If (Flags & #PB_String_ReadOnly)
+      ; leave wndproc as-is
+    Else
+      SetWindowLongPtr_(GadgetID(Gadget), #GWLP_USERDATA, GetWindowLongPtr_(GadgetID(Gadget), #GWLP_WNDPROC))
+      If (Flags & #PB_String_Password)
+        SetWindowLongPtr_(GadgetID(Gadget), #GWLP_WNDPROC, @_StringGadgetWithCtrlBackspaceEntire())
+      Else
+        SetWindowLongPtr_(GadgetID(Gadget), #GWLP_WNDPROC, @_StringGadgetWithCtrlBackspace())
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i ComboBoxGadgetWithCtrlBackspace(Gadget.i, x.i, y.i, Width.i, Height.i, Flags.i = #Null)
+  Protected Result.i = ComboBoxGadget(Gadget, x, y, Width, Height, Flags)
+  If (Result)
+    If (Gadget = #PB_Any)
+      Gadget = Result
+    EndIf
+    If (Flags & #PB_ComboBox_Editable)
+      Protected CBI.COMBOBOXINFO
+      CBI\cbSize = SizeOf(COMBOBOXINFO)
+      If (GetComboBoxInfo_(GadgetID(Gadget), @CBI))
+        If (CBI\hwndEdit)
+          SetWindowLongPtr_(CBI\hwndEdit, #GWLP_USERDATA, GetWindowLongPtr_(CBI\hwndEdit, #GWLP_WNDPROC))
+          SetWindowLongPtr_(CBI\hwndEdit, #GWLP_WNDPROC, @_StringGadgetWithCtrlBackspace())
+        EndIf
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+CompilerIf (#True)
+Macro StringGadget(_Gadget, _x, _y, _Width, _Height, _Content, _Flags = #Null)
+  StringGadgetWithCtrlBackspace((_Gadget), (_x), (_y), (_Width), (_Height), (_Content), (_Flags))
+EndMacro
+Macro ComboBoxGadget(_Gadget, _x, _y, _Width, _Height, _Flags = #Null)
+  ComboBoxGadgetWithCtrlBackspace((_Gadget), (_x), (_y), (_Width), (_Height), (_Flags))
+EndMacro
+CompilerEndIf
+
+CompilerEndIf
+
+;- - Linux
 CompilerIf (#Linux)
 
 #GDK_LEFTTAB = $FE20
@@ -1376,8 +1511,6 @@ CompilerIf (#True)
 CompilerEndIf
 
 CompilerEndIf
-
-;-
 
 CompilerEndIf
 ;-
