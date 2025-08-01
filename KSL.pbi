@@ -1378,6 +1378,11 @@ CompilerEndIf
 ;- - Windows
 CompilerIf (#Windows)
 
+; "Best practice is that all applications call the process-wide SetErrorMode function with a parameter of
+; SEM_FAILCRITICALERRORS at startup. This is to prevent error mode dialogs from hanging the application."
+;   https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-seterrormode
+SetErrorMode_(#SEM_FAILCRITICALERRORS)
+
 CompilerIf (Not Defined(COMBOBOXINFO, #PB_Structure))
 Structure COMBOBOXINFO
   cbSize.l
