@@ -452,6 +452,82 @@ Macro Transparent(_RGB)
   ((_RGB) & $00FFFFFF)
 EndMacro
 
+Procedure.i SwapRGB(Color.i)
+  ProcedureReturn (RGBA(Blue(Color), Green(Color), Red(Color), Alpha(Color)))
+EndProcedure
+
+Procedure.i ParseColor(Text.s)
+  Protected Result.i = 0
+  
+  Text = LCase(Trim(Text))
+  Select (Text)
+    
+    Case "black"
+      Result = #Black
+    Case "red"
+      Result = #Red
+    Case "green"
+      Result = #Green
+    Case "blue"
+      Result = #Blue
+    Case "cyan"
+      Result = #Cyan
+    Case "yellow"
+      Result = #Yellow
+    Case "magenta"
+      Result = #Magenta
+    Case "gray"
+      Result = #Gray
+    Case "white"
+      Result = #White
+      
+    Default
+      
+      Protected IsHex.i      = #False
+      Protected SwapOrder.i  = #False
+      Protected Expand3to6.i = #False
+      
+      If (Left(Text, 1) = "$")
+        Text = Mid(Text, 2)
+        IsHex = #True
+      ElseIf (Left(Text, 2) = "0x")
+        Text = Mid(Text, 3)
+        IsHex = #True
+      ElseIf (Left(Text, 1) = "#")
+        Text = Mid(Text, 2)
+        IsHex = #True
+        SwapOrder = #True
+        If (Len(Text) = 3)
+          Expand3to6 = #True
+        EndIf
+      EndIf
+      
+      If (IsHex)
+        Result = Val("$" + Text)
+      Else
+        Result = Val(Text)
+      EndIf
+      If (Expand3to6)
+        Result = ((Result & $F00) << 8) | ((Result & $0F0) << 4) | (Result & $00F)
+        Result = (Result << 4) | (Result)
+      EndIf
+      If (SwapOrder)
+        Result = SwapRGB(Result)
+      EndIf
+      
+  EndSelect
+  
+  ProcedureReturn (Result)
+EndProcedure
+
+;-
+
+;- ----- Image Functions -----
+
+Macro IsImageAnimated(_Image)
+  (Bool(ImageFrameCount(_Image) > 1))
+EndMacro
+
 ;-
 
 ;- ----- List Functions -----
@@ -1131,6 +1207,10 @@ Macro GetModifiedDate(_File)
   GetFileDate((_File), #PB_Date_Modified)
 EndMacro
 
+Macro WriteProgramEOF(_Program)
+  WriteProgramData(_Program, #PB_Program_Eof, 0)
+EndMacro
+
 CompilerIf (#Windows)
   Macro LaunchFile(_File)
     RunProgram(_File)
@@ -1300,6 +1380,22 @@ Procedure.i ReadPreferenceBool(Key.s, DefaultValue.i)
       Result = #False
     Default
       Result = DefaultValue
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure WritePreferenceColor(Key.s, Value.i)
+  WritePreferenceString(Key, "$" + UCase(Hex(Value, #PB_Long)))
+EndProcedure
+
+Procedure.i ReadPreferenceColor(Key.s, DefaultValue.i)
+  Protected Result.i
+  Protected Text.s = LCase(Trim(ReadPreferenceString(Key, "")))
+  Select (Text)
+    Case ""
+      Result = DefaultValue
+    Default
+      Result = ParseColor(Text)
   EndSelect
   ProcedureReturn (Result)
 EndProcedure
