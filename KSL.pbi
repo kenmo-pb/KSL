@@ -1167,6 +1167,10 @@ Procedure.s GetMusicDirectory()
   ProcedureReturn (GetUserDirectory(#PB_Directory_Musics))
 EndProcedure
 
+Procedure.s GetPicturesDirectory()
+  ProcedureReturn (GetUserDirectory(#PB_Directory_Pictures))
+EndProcedure
+
 Procedure.i CreateDirectoryRecursive(Path.s)
   Protected Result.i = #False
   If (Path)
