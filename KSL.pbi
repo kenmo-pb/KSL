@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20250725
+#KSL_Version = 20251105
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -530,10 +530,20 @@ EndMacro
 
 ;-
 
-;- ----- List Functions -----
+;- ----- List / Map Functions -----
 
 Macro SelectRandomElement(_List)
   SelectElement(_List, Random(ListSize(_List) - 1))
+EndMacro
+
+Macro ClearAndFreeList(_List)
+  ClearList(_List)
+  FreeList(_List)
+EndMacro
+
+Macro ClearAndFreeMap(_Map)
+  ClearMap(_Map)
+  FreeMap(_Map)
 EndMacro
 
 ;-
