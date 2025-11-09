@@ -7,11 +7,11 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20251105
+#KSL_Version = 20251107
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
-  CompilerError #PB_Compiler_Filename + " requires PureBasic 5.10 or newer!"
+  CompilerError #PB_Compiler_Filename + " requires PureBasic 5.10 or newer!" ; for Bool()
 CompilerEndIf
 
 CompilerIf (#PB_Compiler_IsMainFile)
@@ -1177,6 +1177,10 @@ Procedure.s GetMusicDirectory()
   ProcedureReturn (GetUserDirectory(#PB_Directory_Musics))
 EndProcedure
 
+Procedure.s GetVideosDirectory()
+  ProcedureReturn (GetUserDirectory(#PB_Directory_Videos))
+EndProcedure
+
 Procedure.s GetPicturesDirectory()
   ProcedureReturn (GetUserDirectory(#PB_Directory_Pictures))
 EndProcedure
@@ -1379,6 +1383,239 @@ EndProcedure
 
 ;-
 
+;- ----- Window/Desktop Functions -----
+
+Macro MoveWindow(_Window, _x, _y)
+  ResizeWindow((_Window), (_x), (_y), #PB_Ignore, #PB_Ignore)
+EndMacro
+Macro SetWindowSize(_Window, _Width, _Height)
+  ResizeWindow((_Window), #PB_Ignore, #PB_Ignore, (_Width), (_Height))
+EndMacro
+
+Procedure.i CountDesktops()
+  ProcedureReturn (ExamineDesktops())
+EndProcedure
+Procedure.i IsDesktop(i.i)
+  ProcedureReturn (Bool((i >= 0) And (i < CountDesktops())))
+EndProcedure
+
+Procedure.i DesktopExtentX(i.i)
+  ProcedureReturn (DesktopX(i) + DesktopWidth(i))
+EndProcedure
+Procedure.i DesktopExtentY(i.i)
+  ProcedureReturn (DesktopY(i) + DesktopHeight(i))
+EndProcedure
+
+Procedure.i DesktopToGlobalX(dx.i, Desktop.i)
+  ProcedureReturn (dx + DesktopX(Desktop))
+EndProcedure
+Procedure.i DesktopToGlobalY(dy.i, Desktop.i)
+  ProcedureReturn (dy + DesktopY(Desktop))
+EndProcedure
+Procedure.i GlobalToDesktopX(gx.i, Desktop.i)
+  ProcedureReturn (gx - DesktopX(Desktop))
+EndProcedure
+Procedure.i GlobalToDesktopY(gy.i, Desktop.i)
+  ProcedureReturn (gy - DesktopY(Desktop))
+EndProcedure
+
+Procedure.i FindExactDesktop(ID.i = -1, Width.i = 0, Height.i = 0, Depth.i = 0, Frequency.i = 0)
+  Protected Result.i = -1
+  Protected N.i = CountDesktops()
+  Protected i.i
+  For i = 0 To N - 1
+    Protected Match.i = #True
+    If (Match And (ID >= 0))
+      If (i <> ID)
+        Match = #False
+      EndIf
+    EndIf
+    If (Match And (Width > 0))
+      If (DesktopWidth(i) <> Width)
+        Match = #False
+      EndIf
+    EndIf
+    If (Match And (Height > 0))
+      If (DesktopHeight(i) <> Height)
+        Match = #False
+      EndIf
+    EndIf
+    If (Match And (Depth > 0))
+      If (DesktopDepth(i) <> Depth)
+        Match = #False
+      EndIf
+    EndIf
+    If (Match And (Frequency > 0))
+      If (DesktopFrequency(i) <> Frequency)
+        Match = #False
+      EndIf
+    EndIf
+    If (Match)
+      Result = i
+      Break
+    EndIf
+  Next i
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i FindClosestDesktop(ID.i = -1, Width.i = 0, Height.i = 0, Depth.i = 0, Frequency.i = 0)
+  Protected Result.i = -1
+  If (CountDesktops() > 1)
+    Result = FindExactDesktop(ID, Width, Height, Depth, Frequency)
+    If (Result < 0)
+      Result = FindExactDesktop(-1, Width, Height, Depth, Frequency)
+    EndIf
+    If (Result < 0)
+      Result = FindExactDesktop(-1, Width, Height, Depth, 0)
+    EndIf
+    If (Result < 0)
+      Result = FindExactDesktop(-1, Width, Height, 0, 0)
+    EndIf
+    If (Result < 0)
+      Result = 0
+    EndIf
+  Else
+    Result = 0
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i FindClosestDesktopFromIDString(IDString.s)
+  Protected Term.s
+  IDString = LCase(IDString)
+  
+  Protected ID.i = -1
+  If (FindString(IDString, ":"))
+    Term = Before(IDString, ":")
+    If (Term)
+      ID = Val(Term)
+    EndIf
+    IDString = After(IDString, ":")
+  EndIf
+  
+  Protected Frequency.i = 0
+  If (FindString(IDString, "@"))
+    Term = After(IDString, "@")
+    If (Term)
+      Frequency = Val(Term)
+    EndIf
+    IDString = Before(IDString, "@")
+  EndIf
+  
+  Protected Width.i = 0
+  Protected Height.i = 0
+  Protected Depth.i = 0
+  If (CountString(IDString, "x") = 2)
+    Width  = Val(StringField(IDString, 1, "x"))
+    Height = Val(StringField(IDString, 2, "x"))
+    Depth  = Val(StringField(IDString, 3, "x"))
+  ElseIf (CountString(IDString, "x") = 1)
+    Width  = Val(StringField(IDString, 1, "x"))
+    Height = Val(StringField(IDString, 2, "x"))
+  EndIf
+  
+  ProcedureReturn (FindClosestDesktop(ID, Width, Height, Depth, Frequency))
+EndProcedure
+
+Procedure.s DesktopIDString(i.i)
+  Protected Result.s = ""
+  If (IsDesktop(i))
+    If (#True)
+      Result + Str(i) + ":"
+    EndIf
+    Result + Str(DesktopWidth(i)) + "x" + Str(DesktopHeight(i))
+    If (#True)
+      Result + "x" + Str(DesktopDepth(i))
+    EndIf
+    If (#True)
+      Result + "@" + Str(DesktopFrequency(i))
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i IsMinimized(Window.i)
+  ProcedureReturn (Bool(GetWindowState(Window) = #PB_Window_Minimize))
+EndProcedure
+Procedure.i IsMaximized(Window.i)
+  ProcedureReturn (Bool(GetWindowState(Window) = #PB_Window_Maximize))
+EndProcedure
+
+Procedure.i WindowCenterX(Window.i)
+  ProcedureReturn (WindowX(Window) + WindowWidth(Window)/2)
+EndProcedure
+Procedure.i WindowCenterY(Window.i, PercentDown.f = 0.50)
+  ProcedureReturn (WindowY(Window) + WindowHeight(Window) * PercentDown)
+EndProcedure
+Procedure GetWindowCenterXY(Window.i, *CX.INTEGER, *CY.INTEGER, YPercentDown.f = 0.50)
+  If (*CX)
+    *CX\i = WindowCenterX(Window)
+  EndIf
+  If (*CY)
+    *CY\i = WindowCenterY(Window, YPercentDown)
+  EndIf
+EndProcedure
+
+Procedure.i DesktopFromPoint(x.i, y.i)
+  Protected Result.i = -1
+  Protected N.i = CountDesktops()
+  If (N > 0)
+    Protected i.i
+    For i = 0 To (N - 1)
+      If (x >= DesktopX(i))
+        If (x < DesktopExtentX(i))
+          If (y >= DesktopY(i))
+            If (y < DesktopExtentY(i))
+              Result = i
+              Break
+            EndIf
+          EndIf
+        EndIf
+      EndIf
+    Next i
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i DesktopFromWindowTopLeft(Window.i)
+  ProcedureReturn (DesktopFromPoint(WindowX(Window), WindowY(Window)))
+EndProcedure
+
+Procedure.i DesktopFromWindowCenter(Window.i, YPercentDown.f = 0.50)
+  ProcedureReturn (DesktopFromPoint(WindowCenterX(Window), WindowCenterY(Window, YPercentDown)))
+EndProcedure
+
+Procedure.i DesktopFromWindow(Window.i)
+  Protected Result.i = DesktopFromWindowCenter(Window)
+  If (Result < 0)
+    Result = DesktopFromWindowTopLeft(Window)
+  EndIf
+  If (Result < 0)
+    Result = 0
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure CenterWindowInDesktop(Window.i, Desktop.i, YPercentDown.f = 0.50)
+  MoveWindow(Window, DesktopX(Desktop) + (DesktopWidth(Desktop) - WindowWidth(Window))/2, DesktopY(Desktop) + (DesktopHeight(Desktop) - WindowHeight(Window)) * YPercentDown)
+EndProcedure
+
+Procedure CenterWindowInWindow(ChildWindow.i, ParentWindow.i, YPercentDown.f = 0.50)
+  MoveWindow(ChildWindow, WindowX(ParentWindow) + (WindowWidth(ParentWindow) - WindowWidth(ChildWindow))/2, WindowY(ParentWindow) + (WindowHeight(ParentWindow) - WindowHeight(ChildWindow)) * YPercentDown)
+EndProcedure
+
+Procedure.i SameDesktop(Window1.i, Window2.i)
+  ProcedureReturn (Bool(DesktopFromWindow(Window1) = DesktopFromWindow(Window2)))
+EndProcedure
+
+Procedure EnsureSameDesktop(ChildWindow.i, ParentWindow.i)
+  If (Not SameDesktop(ChildWindow, ParentWindow))
+    CenterWindowInWindow(ChildWindow, ParentWindow)
+  EndIf
+EndProcedure
+
+;-
+
 ;- ----- Preference Functions -----
 
 Procedure WritePreferenceBool(Key.s, Value.i)
@@ -1417,6 +1654,19 @@ EndProcedure
 ;-
 
 ;- ----- Network Functions -----
+
+Procedure LaunchURL(URL.s)
+  If (URL)
+    If (Not FindString(URL, "://"))
+      URL = "http://" + URL
+    EndIf
+    CompilerIf (#Windows)
+      RunProgram(URL)
+    CompilerElse
+      RunProgram("open", Quote(URL), "")
+    CompilerEndIf
+  EndIf
+EndProcedure
 
 CompilerIf (Not #KSL_ExcludeNetworkFunctions)
 
