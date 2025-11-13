@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20251107
+#KSL_Version = 20251112
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -130,6 +130,9 @@ CompilerIf (Not Defined(PB_Compiler_64Bit, #PB_Constant))
   CompilerEndIf
 CompilerEndIf
 
+#PB_Compiler_Examples3DData      = #PB_Compiler_Home + WindowsElse("Examples\3D\Data\", "examples/3d/Data/")
+#PB_Compiler_ExamplesSourcesData = #PB_Compiler_Home + WindowsElse("Examples\Sources\Data\", "examples/sources/Data/")
+
 CompilerIf (Not Defined(PB_MessageRequester_Info, #PB_Constant))
   #PB_MessageRequester_Info = WindowsElse(#MB_ICONINFORMATION, 0)
 CompilerEndIf
@@ -179,6 +182,14 @@ CompilerElse
   #Unicode  = #False
   #Ascii    = #True
   #CharSize = 1
+CompilerEndIf
+
+CompilerIf (#Unicode)
+  #InternalStringFormat  = #PB_Unicode
+  #DefaultIOStringFormat = #PB_UTF8
+CompilerElse
+  #InternalStringFormat  = #PB_Ascii
+  #DefaultIOStringFormat = #PB_Ascii
 CompilerEndIf
 
 CompilerIf (#PB_Compiler_Backend = #PB_Backend_C)
@@ -442,86 +453,6 @@ EndMacro
 
 ;-
 
-;- ----- Color Functions -----
-
-Macro Opaque(_RGB)
-  ((_RGB) | $FF000000)
-EndMacro
-
-Macro Transparent(_RGB)
-  ((_RGB) & $00FFFFFF)
-EndMacro
-
-Procedure.i SwapRGB(Color.i)
-  ProcedureReturn (RGBA(Blue(Color), Green(Color), Red(Color), Alpha(Color)))
-EndProcedure
-
-Procedure.i ParseColor(Text.s)
-  Protected Result.i = 0
-  
-  Text = LCase(Trim(Text))
-  Select (Text)
-    
-    Case "black"
-      Result = #Black
-    Case "red"
-      Result = #Red
-    Case "green"
-      Result = #Green
-    Case "blue"
-      Result = #Blue
-    Case "cyan"
-      Result = #Cyan
-    Case "yellow"
-      Result = #Yellow
-    Case "magenta"
-      Result = #Magenta
-    Case "gray"
-      Result = #Gray
-    Case "white"
-      Result = #White
-      
-    Default
-      
-      Protected IsHex.i      = #False
-      Protected SwapOrder.i  = #False
-      Protected Expand3to6.i = #False
-      
-      If (Left(Text, 1) = "$")
-        Text = Mid(Text, 2)
-        IsHex = #True
-      ElseIf (Left(Text, 2) = "0x")
-        Text = Mid(Text, 3)
-        IsHex = #True
-      ElseIf (Left(Text, 1) = "#")
-        Text = Mid(Text, 2)
-        IsHex = #True
-        SwapOrder = #True
-        If (Len(Text) = 3)
-          Expand3to6 = #True
-        EndIf
-      EndIf
-      
-      If (IsHex)
-        Result = Val("$" + Text)
-      Else
-        Result = Val(Text)
-      EndIf
-      If (Expand3to6)
-        Result = ((Result & $F00) << 8) | ((Result & $0F0) << 4) | (Result & $00F)
-        Result = (Result << 4) | (Result)
-      EndIf
-      If (SwapOrder)
-        Result = SwapRGB(Result)
-      EndIf
-      
-  EndSelect
-  
-  ProcedureReturn (Result)
-EndProcedure
-
-;-
-
 ;- ----- Image Functions -----
 
 Macro IsImageAnimated(_Image)
@@ -550,7 +481,7 @@ EndMacro
 
 ;- ----- String Functions -----
 
-Enumeration
+Enumeration ; Flags for the Interate procedures
   #KSL_ExcludeBlank      = $0001
   #KSL_ExcludeWhitespace = $0002
 EndEnumeration
@@ -561,6 +492,10 @@ _StrBool(1) = "true"
 
 Macro StrBool(_Expr)
   _StrBool(Bool(_Expr))
+EndMacro
+
+Macro HexLong(_Number)
+  (Hex((_Number), #PB_Long))
 EndMacro
 
 Macro BytesToChars(_Bytes)
@@ -600,12 +535,58 @@ Macro SDQuoteInPlace(_String)
   ReplaceString(_String, #SQ$, #DQ$, #PB_String_InPlace)
 EndMacro
 
+Macro RemoveSpaces(_String)
+  RemoveString(_String, " ")
+EndMacro
+
 Macro TextVariant(_CharStr)
   RTrim(RTrim((_CharStr), #VS15$), #VS16$) + #VS15$
 EndMacro
 Macro EmojiVariant(_CharStr)
   RTrim(RTrim((_CharStr), #VS15$), #VS16$) + #VS16$
 EndMacro
+
+Macro StringByteLengthN(_String, _Format = #InternalStringFormat, _NumNulls = 1)
+  (StringByteLength(_String, _Format) + ((_NumNulls) * NullTerminatorSize(_Format)))
+EndMacro
+
+Procedure.i NullTerminatorSize(Format.i = #InternalStringFormat)
+  Select (Format)
+    Case #PB_Ascii, #PB_UTF8
+      ProcedureReturn (1)
+    Case #PB_Unicode, #PB_UTF16, #PB_UTF16BE
+      ProcedureReturn (2)
+    Case #PB_UTF32, #PB_UTF32BE
+      ProcedureReturn (4)
+  EndSelect
+  ProcedureReturn (0)
+EndProcedure
+
+Procedure.i StringBuffer(String.s, Format.i = #InternalStringFormat, NumNulls.i = 1)
+  Protected *Buffer = #Null
+  
+  If (Format = #PB_Default)
+    Format = #InternalStringFormat
+  EndIf
+  Select (Format)
+    Case #PB_Ascii, #PB_UTF8, #PB_Unicode
+      Protected Bytes.i = StringByteLengthN(String, Format, NumNulls)
+      If (Bytes > 0)
+        *Buffer = AllocateMemory(Bytes)
+        If (*Buffer)
+          PokeS(*Buffer, String, -1, Format | #PB_String_NoZero)
+        EndIf
+      EndIf
+  EndSelect
+  
+  ProcedureReturn (*Buffer)
+EndProcedure
+
+CompilerIf (Not Defined(Unicode, #PB_Function))
+Procedure.i Unicode(String.s)
+  ProcedureReturn (StringBuffer(String, #PB_Unicode, 1))
+EndProcedure
+CompilerEndIf
 
 Procedure.s Unquote(Text.s, Character.s = "")
   If (Len(Character) = 1)
@@ -665,35 +646,6 @@ Procedure.s RandomString(List StrList.s())
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure.s Before(String.s, Suffix.s)
-  Protected Result.s
-  If (String And Suffix)
-    Protected i.i = FindString(String, Suffix)
-    If (i)
-      Result = Left(String, i-1)
-    EndIf
-  EndIf
-  ProcedureReturn (Result)
-EndProcedure
-
-Procedure.s After(String.s, Prefix.s)
-  Protected Result.s
-  If (String And Prefix)
-    Protected i.i = FindString(String, Prefix)
-    If (i)
-      Result = Mid(String, i + Len(Prefix))
-    EndIf
-  EndIf
-  ProcedureReturn (Result)
-EndProcedure
-
-Procedure.s Between(String.s, Prefix.s, Suffix.s)
-  Protected Result.s
-  String = After(String, Prefix)
-  Result = Before(String, Suffix)
-  ProcedureReturn (Result)
-EndProcedure
-
 Procedure.i FindStringOccurrence(String.s, StringToFind.s, Occurrence.i, Mode.i = #PB_String_CaseSensitive)
   Protected Result.i = 0
   Protected Found.i  = 0
@@ -712,6 +664,35 @@ Procedure.i FindStringOccurrence(String.s, StringToFind.s, Occurrence.i, Mode.i 
       Break
     EndIf
   Wend
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s Before(String.s, Suffix.s, Occurrence.i = 1)
+  Protected Result.s
+  If (String And Suffix)
+    Protected i.i = FindStringOccurrence(String, Suffix, Occurrence)
+    If (i)
+      Result = Left(String, i-1)
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s After(String.s, Prefix.s, Occurrence.i = 1)
+  Protected Result.s
+  If (String And Prefix)
+    Protected i.i = FindStringOccurrence(String, Prefix, Occurrence)
+    If (i)
+      Result = Mid(String, i + Len(Prefix))
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s Between(String.s, Prefix.s, Suffix.s)
+  Protected Result.s
+  String = After(String, Prefix)
+  Result = Before(String, Suffix)
   ProcedureReturn (Result)
 EndProcedure
 
@@ -895,6 +876,167 @@ Procedure.i IterateStringsFromFilePath(FilePath.s, *CallbackWithUserData, UserDa
   
   ProcedureReturn (Result)
 EndProcedure
+
+;-
+
+;- ----- Color Functions -----
+
+Enumeration ; ColorFormats for the Compose procedures
+  #KSL_ColorFormat_Integer = 0
+  #KSL_ColorFormat_HexPB
+  #KSL_ColorFormat_HexCSS
+  #KSL_ColorFormat_RGBComponents
+EndEnumeration
+
+Macro Transparent(_RGB)
+  ((_RGB) & $00FFFFFF)
+EndMacro
+
+Macro SetAlpha(_Color, _Alpha)
+  (Transparent(_Color) | ((_Alpha) << 24))
+EndMacro
+
+Macro Opaque(_RGB)
+  (SetAlpha((_RGB), $FF))
+EndMacro
+
+Procedure.i SwapRGB(Color.i)
+  ProcedureReturn (RGBA(Blue(Color), Green(Color), Red(Color), Alpha(Color)))
+EndProcedure
+
+Procedure.s ComposeRGB(RGBColor.i, ColorFormat.i = #KSL_ColorFormat_HexCSS)
+  Protected Result.s = ""
+  
+  RGBColor = RGBColor & $00FFFFFF
+  Select (ColorFormat)
+    Case #KSL_ColorFormat_HexPB
+      Result = "$" + RSet(Hex(RGBColor, #PB_Long), 6, "0")
+    Case #KSL_ColorFormat_HexCSS
+      Result = "#" + RSet(Hex(SwapRGB(RGBColor), #PB_Long), 6, "0")
+    Case #KSL_ColorFormat_RGBComponents
+      Result = "RGB(" + Str(Red(RGBColor)) + ", " + Str(Green(RGBColor)) + ", " + Str(Blue(RGBColor)) + ")"
+    Default ;Case #KSL_ColorFormat_Integer
+      Result = StrU(RGBColor)
+  EndSelect
+  
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s ComposeRGBA(RGBAColor.i, ColorFormat.i = #KSL_ColorFormat_HexCSS)
+  Protected Result.s = ""
+  
+  RGBAColor = RGBAColor & $FFFFFFFF
+  Select (ColorFormat)
+    Case #KSL_ColorFormat_HexPB
+      Result = "$" + RSet(Hex(RGBAColor, #PB_Long), 8, "0")
+    Case #KSL_ColorFormat_HexCSS
+      If (#True) ; move AA to the end, after #RRGGBB
+        Result = "#" + RSet(Hex(SwapRGB(RGBAColor) & $00FFFFFF), 6, "0") + RSet(Hex(Alpha(RGBAColor)), 2, "0")
+      Else
+        Result = "#" + RSet(Hex(SwapRGB(RGBAColor), #PB_Long), 8, "0")
+      EndIf
+    Case #KSL_ColorFormat_RGBComponents
+      Result = "RGBA(" + Str(Red(RGBAColor)) + ", " + Str(Green(RGBAColor)) + ", " + Str(Blue(RGBAColor)) + ", " + Str(Alpha(RGBAColor)) + ")"
+    Default ;Case #KSL_ColorFormat_Integer
+      Result = StrU(RGBAColor & $FFFFFFFF)
+  EndSelect
+  
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i ParseColor(Text.s)
+  Protected Result.i = 0
+  
+  Text = LCase(RemoveSpaces(Text))
+  Select (Text)
+    
+    Case "black"
+      Result = #Black
+    Case "red"
+      Result = #Red
+    Case "green"
+      Result = #Green
+    Case "blue"
+      Result = #Blue
+    Case "cyan"
+      Result = #Cyan
+    Case "yellow"
+      Result = #Yellow
+    Case "magenta"
+      Result = #Magenta
+    Case "gray"
+      Result = #Gray
+    Case "white"
+      Result = #White
+      
+    Default
+      
+      Protected IsHex.i      = #False
+      Protected SwapOrder.i  = #False
+      Protected Expand3to6.i = #False
+      Protected Handled.i    = #False
+      
+      If (Left(Text, 1) = "$")
+        Text = Mid(Text, 2)
+        IsHex = #True
+      ElseIf (Left(Text, 2) = "0x")
+        Text = Mid(Text, 3)
+        IsHex = #True
+      ElseIf (Left(Text, 1) = "#")
+        Text = Mid(Text, 2)
+        IsHex = #True
+        SwapOrder = #True
+        If (Len(Text) = 3)
+          Expand3to6 = #True
+        ElseIf (Len(Text) = 8)
+          If (#True) ; assume AA is at the end, swap #RRGGBBAA --> AARRGGBB
+            Text = Mid(Text, 7, 2) + Left(Text, 6)
+          EndIf
+        ElseIf (Len(Text) = 4)
+          Expand3to6 = #True
+          If (#True) ; assume A is at the end, swap #RGBA --> ARGB
+            Text = Mid(Text, 4, 1) + Left(Text, 3)
+          EndIf
+        EndIf
+      ElseIf (FindString(Text, "rgb(") Or FindString(Text, "rgba("))
+        Handled = #True
+        Text = After(Text, "(")
+        Text = Before(Text, ")")
+        Result = RGBA(Val(StringField(Text, 1, ",")), Val(StringField(Text, 2, ",")), Val(StringField(Text, 3, ",")), Val(StringField(Text, 4, ",")))
+      EndIf
+      
+      If (Not Handled)
+        If (IsHex)
+          Result = Val("$" + Text)
+        Else
+          Result = Val(Text)
+        EndIf
+        If (Expand3to6)
+          Result = ((Result & $F000) << 12) | ((Result & $F00) << 8) | ((Result & $0F0) << 4) | (Result & $00F)
+          Result = (Result << 4) | (Result)
+        EndIf
+        If (SwapOrder)
+          Result = SwapRGB(Result)
+        EndIf
+      EndIf
+      
+  EndSelect
+  
+  Result = Result & $FFFFFFFF
+  
+  ProcedureReturn (Result)
+EndProcedure
+
+;-
+
+;- ----- Drawing Functions -----
+
+Macro StartImageDrawing(_Image)
+  StartDrawing(ImageOutput(_Image))
+EndMacro
+Macro StartCanvasDrawing(_Gadget)
+  StartDrawing(CanvasOutput(_Gadget))
+EndMacro
 
 ;-
 
@@ -1221,6 +1363,9 @@ EndProcedure
 
 ;- ----- File/Folder Functions -----
 
+Macro GetCreatedDate(_File)
+  GetFileDate((_File), #PB_Date_Created)
+EndMacro
 Macro GetModifiedDate(_File)
   GetFileDate((_File), #PB_Date_Modified)
 EndMacro
@@ -1245,28 +1390,45 @@ CompilerElse
   EndMacro
 CompilerEndIf
 
-Procedure ShowFileInExplorer(File.s)
-  If (File)
-    Protected Path.s = GetPathPart(File)
-    If (Path = "")
-      Path = GetCurrentDirectory()
-    EndIf
+Procedure ShowInExplorer(FileOrFolder.s)
+  If (FileExists(FileOrFolder))
     CompilerIf (#Windows)
-      RunProgram("explorer.exe", "/SELECT," + Quote(File), Path)
+      RunProgram("explorer.exe", "/SELECT," + Quote(FileOrFolder), "")
     CompilerElse
-      LaunchFolder(Path)
+      LaunchFolder(GetPathPart(FileOrFolder))
+    CompilerEndIf
+    
+  ElseIf (PathExists(FileOrFolder))
+    CompilerIf (#Windows)
+      If (#False)
+        RunProgram("explorer.exe", "/SELECT," + Quote(FileOrFolder), "")
+      Else
+        LaunchFolder(FileOrFolder)
+      EndIf
+    CompilerElse
+      LaunchFolder(FileOrFolder)
     CompilerEndIf
   EndIf
 EndProcedure
 
-Procedure.s ReadFileToString(File.s)
+Procedure.s ReadFileToString(File.s, FileFormat.i = #PB_Default)
   Protected Result.s = ""
   Protected FN.i = ReadFile(#PB_Any, File)
   If (FN)
-    Protected Format.i = ReadStringFormat(FN)
-    Select (Format)
+    Protected ReadFormat.i = 0
+    If (FileFormat <> #PB_Ascii)
+      ReadFormat = ReadStringFormat(FN)
+    EndIf
+    If (FileFormat = #PB_Default)
+      If (ReadFormat = #PB_Ascii) ; no BOM was detected
+        ReadFormat = #DefaultIOStringFormat
+      EndIf
+    Else
+      ReadFormat = FileFormat ; use specified
+    EndIf
+    Select (ReadFormat)
       Case #PB_Ascii, #PB_UTF8, #PB_Unicode
-        Result = ReadString(FN, Format | #PB_File_IgnoreEOL)
+        Result = ReadString(FN, ReadFormat | #PB_File_IgnoreEOL)
     EndSelect
     CloseFile(FN)
   EndIf
@@ -1276,7 +1438,7 @@ EndProcedure
 Procedure.i CreateFileFromString(File.s, String.s, Format.i = #PB_Default, WriteBOM.i = #PB_Default)
   Protected Result.i = #False
   If (Format = #PB_Default)
-    Format = #PB_UTF8
+    Format = #DefaultIOStringFormat
   EndIf
   If (WriteBOM = #PB_Default)
     WriteBOM = Bool(Format = #PB_Unicode)
@@ -1390,6 +1552,11 @@ Macro MoveWindow(_Window, _x, _y)
 EndMacro
 Macro SetWindowSize(_Window, _Width, _Height)
   ResizeWindow((_Window), #PB_Ignore, #PB_Ignore, (_Width), (_Height))
+EndMacro
+
+Macro WaitCloseWindow(_Window = #PB_Any)
+  Repeat
+  Until ((WaitWindowEvent() = #PB_Event_CloseWindow) And (((_Window) = #PB_Any) Or (EventWindow() = (_Window))))
 EndMacro
 
 Procedure.i CountDesktops()
@@ -1597,6 +1764,7 @@ Procedure.i DesktopFromWindow(Window.i)
 EndProcedure
 
 Procedure CenterWindowInDesktop(Window.i, Desktop.i, YPercentDown.f = 0.50)
+  ExamineDesktops()
   MoveWindow(Window, DesktopX(Desktop) + (DesktopWidth(Desktop) - WindowWidth(Window))/2, DesktopY(Desktop) + (DesktopHeight(Desktop) - WindowHeight(Window)) * YPercentDown)
 EndProcedure
 
@@ -1635,18 +1803,34 @@ Procedure.i ReadPreferenceBool(Key.s, DefaultValue.i)
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure WritePreferenceColor(Key.s, Value.i)
-  WritePreferenceString(Key, "$" + UCase(Hex(Value, #PB_Long)))
+Procedure WritePreferenceRGB(Key.s, Color.i, ColorFormat.i = #KSL_ColorFormat_Integer)
+  WritePreferenceString(Key, ComposeRGB(Color, ColorFormat))
 EndProcedure
 
-Procedure.i ReadPreferenceColor(Key.s, DefaultValue.i)
+Procedure WritePreferenceRGBA(Key.s, Color.i, ColorFormat.i = #KSL_ColorFormat_Integer)
+  WritePreferenceString(Key, ComposeRGBA(Color, ColorFormat))
+EndProcedure
+
+Procedure.i ReadPreferenceRGBA(Key.s, DefaultValue.i)
   Protected Result.i
   Protected Text.s = LCase(Trim(ReadPreferenceString(Key, "")))
   Select (Text)
     Case ""
       Result = DefaultValue
     Default
-      Result = ParseColor(Text)
+      Result = ParseColor(Text) & $FFFFFFFF
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i ReadPreferenceRGB(Key.s, DefaultValue.i)
+  Protected Result.i
+  Protected Text.s = LCase(Trim(ReadPreferenceString(Key, "")))
+  Select (Text)
+    Case ""
+      Result = DefaultValue
+    Default
+      Result = ParseColor(Text) & $00FFFFFF
   EndSelect
   ProcedureReturn (Result)
 EndProcedure
@@ -1732,7 +1916,7 @@ CompilerEndIf
 
 ;-
 
-;- ----- OS-Specific Initialization -----
+;- ----- OS-Specific -----
 
 
 ;- - Windows
