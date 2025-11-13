@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20251112
+#KSL_Version = 20251113
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -228,6 +228,10 @@ EndMacro
 
 Macro PureBasicBuildModeFull()
   "PureBasic " + PureBasicVersionString() + " " + #BuildMode$
+EndMacro
+
+Macro DebugProcedure()
+  Debug #PB_Compiler_Procedure + "()"
 EndMacro
 
 ;-
@@ -1527,6 +1531,10 @@ Macro GetCanvasMouseY(_CanvasGadget)
 EndMacro
 Macro GetCanvasWheelDelta(_CanvasGadget)
   (GetGadgetAttribute((_CanvasGadget), #PB_Canvas_WheelDelta))
+EndMacro
+
+Macro SetCanvasCursor(_CanvasGadget, _Cursor)
+  SetGadgetAttribute((_CanvasGadget), #PB_Canvas_Cursor, (_Cursor))
 EndMacro
 
 Macro GetPanelWidth(_PanelGadget)
