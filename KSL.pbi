@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20251113
+#KSL_Version = 20251125
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -1094,6 +1094,19 @@ Procedure.i DeleteFileOrFolder(Path.s, Force.i = #True)
         DeleteFile(Path, Bool(Force) * #PB_FileSystem_Force)
         Result = Bool(FileSize(Path) = #PB_FileSize_Missing)
     EndSelect
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s AppendFileName(File.s, Suffix.s)
+  Protected Result.s = ""
+  If (File And Suffix)
+    Protected Ext.s = GetExtensionPart(File)
+    If (Ext)
+      Result = Left(File, Len(File) - (1 + Len(Ext))) + Suffix + "." + Ext
+    Else
+      Result = File + Suffix
+    EndIf
   EndIf
   ProcedureReturn (Result)
 EndProcedure
