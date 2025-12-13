@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20251125
+#KSL_Version = 20251211
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -288,8 +288,9 @@ CompilerEndIf
 #PB_FileSize_Missing   = -1
 #PB_FileSize_Directory = -2
 
-#CurrentDirectoryName = "."
-#ParentDirectoryName  = ".."
+#CurrentDirectorySymbol = "."
+#ParentDirectorySymbol  = ".."
+#HomeDirectorySymbol    = "~"
 
 #PB_Shortcut_Equal  = WindowsElse(#VK_OEM_PLUS,  '=')
 #PB_Shortcut_Hyphen = WindowsElse(#VK_OEM_MINUS, '-')
@@ -459,9 +460,55 @@ EndMacro
 
 ;- ----- Image Functions -----
 
+#JPEGQualityMinimum = 0
+#JPEGQualityDefault = 7
+#JPEGQualityMaximum = 10
+
 Macro IsImageAnimated(_Image)
   (Bool(ImageFrameCount(_Image) > 1))
 EndMacro
+
+Macro UseJPEGCodecs()
+  UseJPEGImageDecoder()
+  UseJPEGImageEncoder()
+EndMacro
+
+Macro UsePNGCodecs()
+  UsePNGImageDecoder()
+  UsePNGImageEncoder()
+EndMacro
+
+Macro SaveBMP(_Image, _FileName)
+  SaveImage((_Image), _FileName, #PB_ImagePlugin_BMP)
+EndMacro
+
+Macro SavePNG(_Image, _FileName)
+  SaveImage((_Image), _FileName, #PB_ImagePlugin_PNG)
+EndMacro
+
+Macro SaveJPEG(_Image, _FileName, _Quality = #JPEGQualityDefault)
+  SaveImage((_Image), _FileName, #PB_ImagePlugin_JPEG, _Quality)
+EndMacro
+
+Procedure.i SaveImageByExtension(Image.i, FileName.s, Quality.i = #JPEGQualityDefault)
+  Protected Result.i = #False
+  If (FileName)
+    Select (LCase(GetExtensionPart(FileName)))
+      Case "bmp"
+        Result = SaveBMP(Image, FileName)
+      Case "png"
+        Result = SavePNG(Image, FileName)
+      Case "jpg", "jpeg"
+        Result = SaveJPEG(Image, FileName, Quality)
+      Default
+        Result = SavePNG(Image, FileName)
+        If (Not Result)
+          Result = SaveBMP(Image, FileName)
+        EndIf
+    EndSelect
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
 
 ;-
 
@@ -668,6 +715,21 @@ Procedure.i FindStringOccurrence(String.s, StringToFind.s, Occurrence.i, Mode.i 
       Break
     EndIf
   Wend
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i FindLastOccurrence(String.s, StringToFind.s, Mode.i = #PB_String_CaseSensitive)
+  Protected Result.i = 0
+  Protected LString.s = String
+  Protected LStringToFind.s = StringToFind
+  If (Mode = #PB_String_NoCase)
+    LString = LCase(LString)
+    LStringToFind = LCase(LStringToFind)
+  EndIf
+  Protected i.i = CountString(String, StringToFind)
+  If (i > 0)
+    Result = FindStringOccurrence(String, StringToFind, i, Mode)
+  EndIf
   ProcedureReturn (Result)
 EndProcedure
 
@@ -885,6 +947,15 @@ EndProcedure
 
 ;- ----- Color Functions -----
 
+#OpaqueBlack   = $FF000000
+#OpaqueRed     = $FF0000FF
+#OpaqueGreen   = $FF00FF00
+#OpaqueBlue    = $FFFF0000
+#OpaqueYellow  = $FF00FFFF
+#OpaqueMagenta = $FFFF00FF
+#OpaqueCyan    = $FFFFFF00
+#OpaqueWhite   = $FFFFFFFF
+
 Enumeration ; ColorFormats for the Compose procedures
   #KSL_ColorFormat_Integer = 0
   #KSL_ColorFormat_HexPB
@@ -1068,6 +1139,10 @@ CompilerElse
   EndMacro
 CompilerEndIf
 
+Macro GetNamePart(_File)
+  GetFilePart(_File, #PB_FileSystem_NoExtension)
+EndMacro
+
 Macro RemoveExtensionPart(_File)
   SetExtensionPart((_File), "")
 EndMacro
@@ -1187,7 +1262,7 @@ Procedure.i IsAbsolutePath(Path.s)
     CompilerElse
       If (Left(Path, 1) = "/")
         Result = #True
-      ElseIf (Left(Path, 1) = "~")
+      ElseIf (Left(Path, 1) = #HomeDirectorySymbol)
         Result = #True
       EndIf
     CompilerEndIf
@@ -1219,18 +1294,27 @@ Procedure.s GetParentDirectory(Directory.s)
   ProcedureReturn (GetPathPart(RemovePathSeparator(Directory)))
 EndProcedure
 
-Procedure.s NormalizePath(Path.s)
+Procedure.s NormalizePath(Path.s, ExpandCurrentDirectory.i = #False)
   Protected Result.s = ""
+  
+  If ((Path = "") And (ExpandCurrentDirectory) And (#False))
+    Path = #CurrentDirectorySymbol
+  EndIf
+  
   If (Path)
     Path = NormalizePathSeparators(Path, #PS$)
     Protected IsAbsolute.i = IsAbsolutePath(Path)
     Protected File.s = GetFilePart(Path)
     Path = GetPathPart(Path)
-    If (File = #CurrentDirectoryName)
+    If (File = #CurrentDirectorySymbol)
+      If (ExpandCurrentDirectory)
+        File = GetCurrentDirectory()
+      Else
+        File = ""
+      EndIf
+    ElseIf (File = #ParentDirectorySymbol)
       File = ""
-    ElseIf (File = #ParentDirectoryName)
-      File = ""
-      Path + #ParentDirectoryName + #PS$
+      Path + #ParentDirectorySymbol + #PS$
     EndIf
     If (Path)
       Protected ExtraParents.i = 0
@@ -1239,9 +1323,13 @@ Procedure.s NormalizePath(Path.s)
       For i = 1 To N
         Protected Term.s = StringField(Path, i, #PS$)
         If (Term <> "")
-          If (Term = #CurrentDirectoryName)
-            ; ignore
-          ElseIf (Term = #ParentDirectoryName)
+          If (Term = #CurrentDirectorySymbol)
+            If ((Result = "") And (ExpandCurrentDirectory))
+              Result = GetCurrentDirectory()
+            Else
+              ; ignore
+            EndIf
+          ElseIf (Term = #ParentDirectorySymbol)
             If (IsAbsolute)
               Result = GetParentDirectory(Result)
               If (Result = "")
@@ -1259,6 +1347,8 @@ Procedure.s NormalizePath(Path.s)
                 ExtraParents + 1
               EndIf
             EndIf
+          ElseIf ((Term = #HomeDirectorySymbol) And (Result = "") And (Not #Windows))
+            Result = GetHomeDirectory()
           Else
             Result + Term + #PS$
           EndIf
@@ -1271,7 +1361,7 @@ Procedure.s NormalizePath(Path.s)
         EndIf
       Next i
       While (ExtraParents > 0)
-        Result = #ParentDirectoryName + #PS$ + Result
+        Result = #ParentDirectorySymbol + #PS$ + Result
         ExtraParents - 1
       Wend
     EndIf
@@ -1305,7 +1395,7 @@ Procedure.s MakeRelativePath(Path.s, RootDir.s)
               Prefix = ""
               Break
             Else
-              Prefix + #ParentDirectoryName + #PS$
+              Prefix + #ParentDirectorySymbol + #PS$
             EndIf
           EndIf
         Wend
@@ -1659,6 +1749,9 @@ Procedure.i FindClosestDesktop(ID.i = -1, Width.i = 0, Height.i = 0, Depth.i = 0
     If (Result < 0)
       Result = FindExactDesktop(-1, Width, Height, 0, 0)
     EndIf
+    ;If (Result < 0)
+    ;  Result = FindClosestDesktopFromResolution(Width, Height)
+    ;EndIf
     If (Result < 0)
       Result = 0
     EndIf
