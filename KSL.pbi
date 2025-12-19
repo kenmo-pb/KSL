@@ -7,11 +7,11 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20251211
+#KSL_Version = 20251216
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
-  CompilerError #PB_Compiler_Filename + " requires PureBasic 5.10 or newer!" ; for Bool()
+  CompilerError #PB_Compiler_Filename + " requires PureBasic 5.10 or newer!" ; mainly for Bool()
 CompilerEndIf
 
 CompilerIf (#PB_Compiler_IsMainFile)
@@ -312,6 +312,9 @@ CompilerIf (PBGTE(610))
   Macro Error(_Text, _ParentID = #Null)
     MessageRequester("Error", _Text, #PB_MessageRequester_Error, (_ParentID))
   EndMacro
+  Macro PasswordRequester(_Title, _Message, _DefaultString = "", _ParentID = #Null)
+    InputRequester(_Title, _Message, _DefaultString, #PB_InputRequester_Password, (_ParentID))
+  EndMacro
 CompilerElse
   Macro Info(_Text, _ParentID = #Null)
     MessageRequester("Information", _Text, #PB_MessageRequester_Info)
@@ -324,6 +327,9 @@ CompilerElse
   EndMacro
   Macro Error(_Text, _ParentID = #Null)
     MessageRequester("Error", _Text, #PB_MessageRequester_Error)
+  EndMacro
+  Macro PasswordRequester(_Title, _Message, _DefaultString = "", _ParentID = #Null)
+    InputRequester(_Title, _Message, _DefaultString, #PB_InputRequester_Password)
   EndMacro
 CompilerEndIf
 
@@ -1658,11 +1664,26 @@ EndProcedure
 
 ;- ----- Window/Desktop Functions -----
 
+CompilerIf (#True)
+  #PB_Window_AllSizeGadgets = #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget
+CompilerEndIf
+CompilerIf (#False)
+  #PB_Window_Hidden = #PB_Window_Invisible
+CompilerEndIf
+
+Macro StandardWindowFlags(_Resizeable = #False, _Invisible = #False)
+  (#PB_Window_SystemMenu | #PB_Window_ScreenCentered | #PB_Window_MinimizeGadget | (Bool(_Resizeable) * #PB_Window_AllSizeGadgets) | (Bool(_Invisible) * #PB_Window_Invisible))
+EndMacro
+
 Macro MoveWindow(_Window, _x, _y)
   ResizeWindow((_Window), (_x), (_y), #PB_Ignore, #PB_Ignore)
 EndMacro
 Macro SetWindowSize(_Window, _Width, _Height)
   ResizeWindow((_Window), #PB_Ignore, #PB_Ignore, (_Width), (_Height))
+EndMacro
+
+Macro ShowWindow(_Window)
+  HideWindow((_Window), #False)
 EndMacro
 
 Macro WaitCloseWindow(_Window = #PB_Any)
@@ -2033,6 +2054,7 @@ CompilerEndIf
 ;- ----- OS-Specific -----
 
 
+;-
 ;- - Windows
 CompilerIf (#Windows)
 
@@ -2152,8 +2174,10 @@ Macro ComboBoxGadget(_Gadget, _x, _y, _Width, _Height, _Flags = #Null)
 EndMacro
 CompilerEndIf
 
-CompilerEndIf
+CompilerEndIf ; Windows
 
+
+;-
 ;- - Linux
 CompilerIf (#Linux)
 
@@ -2173,7 +2197,8 @@ CompilerIf (#True)
   EndIf
 CompilerEndIf
 
-CompilerEndIf
+CompilerEndIf ; Linux
+
 
 CompilerEndIf
 ;-
