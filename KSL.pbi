@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20251216
+#KSL_Version = 20260105
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -159,6 +159,18 @@ CompilerIf (PBGTE(610))
   Macro InitScintilla()
     _KSL_ReturnTrue()
   EndMacro
+CompilerEndIf
+
+CompilerIf (PBLT(610))
+CompilerIf (Not Defined(time, #PB_Procedure))
+  ImportC ""
+    time.l(*t)
+  EndImport
+CompilerEndIf
+
+Procedure.i DateUTC()
+  ProcedureReturn (time(#Null))
+EndProcedure
 CompilerEndIf
 
 ;-
@@ -450,6 +462,9 @@ EndMacro
 
 Macro Now()
   Date()
+EndMacro
+Macro NowUTC()
+  DateUTC()
 EndMacro
 
 Macro DateString(_Timestamp = Now())
@@ -1412,6 +1427,33 @@ Procedure.s MakeRelativePath(Path.s, RootDir.s)
   ProcedureReturn (Result)
 EndProcedure
 
+Procedure.i IsMacAppBundle()
+  CompilerIf (#Mac)
+    If (EndsWith(GetPathPart(ProgramFilename()), ".app/Contents/MacOS/"))
+      ProcedureReturn (#True)
+    EndIf
+  CompilerEndIf
+  ProcedureReturn (#False)
+EndProcedure
+
+Procedure.s GetAppPath()
+  CompilerIf (#Mac)
+    Protected Path.s = ProgramFilename()
+    If (IsMacAppBundle())
+      While (Right(Path, 5) <> ".app/")
+        Path = GetParentDirectory(Path)
+      Wend
+      Path = RTrim(Path, "/")
+      If (Path = "")
+        Break
+      EndIf
+    EndIf
+    ProcedureReturn (Path)
+  CompilerElse
+    ProcedureReturn (ProgramFilename())
+  CompilerEndIf
+EndProcedure
+
 Procedure.s GetProgramDirectory()
   ProcedureReturn (GetPathPart(ProgramFilename()))
 EndProcedure
@@ -1454,6 +1496,145 @@ Procedure.i CreateDirectoryRecursive(Path.s)
   ProcedureReturn (Result)
 EndProcedure
 
+Procedure.s CreateAndReturnDirectory(Path.s)
+  If (Path)
+    CreateDirectoryRecursive(Path)
+  EndIf
+  ProcedureReturn (Path)
+EndProcedure
+
+Procedure.s _GetUserDataPathFormat(Name.s)
+  CompilerIf (#Windows)
+    Name = Trim(Name)
+  CompilerElse
+    Name = RemoveString(Name, " ")
+  CompilerEndIf
+  
+  CompilerIf (#False)
+    Name = LCase(Name)
+  CompilerEndIf
+  
+  CompilerIf (#True)
+    ReplaceString(Name, "<", "_", #PB_String_InPlace)
+    ReplaceString(Name, ">", "_", #PB_String_InPlace)
+    ReplaceString(Name, ":", "_", #PB_String_InPlace)
+    ReplaceString(Name, #DQUOTE$, "_", #PB_String_InPlace)
+    ReplaceString(Name, "/", "_", #PB_String_InPlace)
+    ReplaceString(Name, "\", "_", #PB_String_InPlace)
+    ReplaceString(Name, "|", "_", #PB_String_InPlace)
+    ReplaceString(Name, "?", "_", #PB_String_InPlace)
+    ReplaceString(Name, "*", "_", #PB_String_InPlace)
+  CompilerEndIf
+  
+  ProcedureReturn (Name)
+EndProcedure
+
+Procedure.s GetUserDataPath(AppName.s, OrgName.s = "", Alternate.i = #False)
+  Protected Result.s = ""
+  
+  CompilerIf (#Windows)
+    Protected Parent.s
+    If (Not Alternate)
+      Parent = GetEnvironmentVariable("LOCALAPPDATA")
+    EndIf
+    If (Parent = "")
+      Parent = GetEnvironmentVariable("APPDATA")
+    EndIf
+    If (Parent = "")
+      Parent = GetHomeDirectory()
+    EndIf
+    Result = EnsurePathSeparator(Parent)
+    If (OrgName)
+      Result = Result + _GetUserDataPathFormat(OrgName) + #PS$
+    EndIf
+    If (AppName)
+      Result = Result + _GetUserDataPathFormat(AppName) + #PS$
+    EndIf
+    
+  CompilerElseIf (#Mac)
+    Result = GetHomeDirectory() + "Library" + #PS$ + "Application Support" + #PS$
+    If (OrgName)
+      Result = Result + _GetUserDataPathFormat(OrgName) + #PS$
+    EndIf
+    If (AppName)
+      Result = Result + _GetUserDataPathFormat(AppName) + #PS$
+    EndIf
+    
+  CompilerElseIf (#Linux)
+    If (Alternate)
+      Result = GetHomeDirectory()
+      If (OrgName)
+        Result = Result + "." + _GetUserDataPathFormat(OrgName) + #PS$
+        If (AppName)
+          Result = Result + _GetUserDataPathFormat(AppName) + #PS$
+        EndIf
+      ElseIf (AppName)
+        Result = Result + "." + _GetUserDataPathFormat(AppName) + #PS$
+      EndIf
+    Else
+      Protected Parent.s
+      Parent = GetEnvironmentVariable("XDG_DATA_HOME")
+      If (Parent = "")
+        Parent = GetHomeDirectory() + ".local" + #PS$ + "share" + #PS$
+      EndIf
+      Result = EnsurePathSeparator(Parent)
+      If (OrgName)
+        Result = Result + _GetUserDataPathFormat(OrgName) + #PS$
+      EndIf
+      If (AppName)
+        Result = Result + _GetUserDataPathFormat(AppName) + #PS$
+      EndIf
+    EndIf
+    
+  CompilerEndIf
+  
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s FindResourcePath(ResourceName.s)
+  Protected Result.s = ""
+  
+  If (ResourceName)
+    NewList PathToTry.s()
+    
+    AddString(PathToTry(), GetCurrentDirectory())
+    AddString(PathToTry(), GetProgramDirectory())
+    If (#True)
+      AddString(PathToTry(), GetParentDirectory(GetCurrentDirectory()))
+      AddString(PathToTry(), GetParentDirectory(GetProgramDirectory()))
+    EndIf
+    
+    CompilerSelect (#PB_Compiler_OS)
+      CompilerCase (#PB_OS_Windows)
+      CompilerCase (#PB_OS_Linux)
+      CompilerCase (#PB_OS_MacOS)
+        If (IsMacAppBundle())
+          AddString(PathToTry(), EnsurePathSeparator(GetAppPath()) + "Contents/Resources/")
+        EndIf
+    CompilerEndSelect
+    
+    ForEach (PathToTry())
+      If (PathToTry())
+        PathToTry() = EnsurePathSeparator(PathToTry())
+        Select (FileSize(PathToTry() + ResourceName))
+          Case #PB_FileSize_Missing
+            ; continue...
+          Case #PB_FileSize_Directory
+            Result = EnsurePathSeparator(PathToTry() + ResourceName)
+            Break
+          Default
+            Result = PathToTry()
+            Break
+        EndSelect
+      EndIf
+    Next
+    
+    FreeList(PathToTry())
+  EndIf
+  
+  ProcedureReturn (Result)
+EndProcedure
+
 Procedure.s FindFirstFile(Pattern.s, Directory.s = "")
   Protected Result.s = ""
   If (Directory = "")
@@ -1483,6 +1664,19 @@ Macro GetModifiedDate(_File)
   GetFileDate((_File), #PB_Date_Modified)
 EndMacro
 
+CompilerIf (#Windows)
+Macro IsHidden(_FileOrFolder)
+  (Bool(GetFileAttributes(_FileOrFolder) & #PB_FileSystem_Hidden))
+EndMacro
+Macro IsReadOnly(_FileOrFolder)
+  (Bool(GetFileAttributes(_FileOrFolder) & #PB_FileSystem_ReadOnly))
+EndMacro
+CompilerElse
+Macro IsHidden(_FileOrFolder)
+  (StartsWith(GetFilePart(RemovePathSeparator(_FileOrFolder)), "."))
+EndMacro
+CompilerEndIf
+
 Macro WriteProgramEOF(_Program)
   WriteProgramData(_Program, #PB_Program_Eof, 0)
 EndMacro
@@ -1501,6 +1695,28 @@ CompilerElse
   Macro LaunchFolder(_Folder)
     RunProgram("open", Quote(_Folder), _Folder)
   EndMacro
+CompilerEndIf
+
+CompilerIf (#Windows)
+Procedure.i SetHidden(FileOrFolder.s, State.i)
+  Protected Result.i
+  If (State)
+    Result = SetFileAttributes(FileOrFolder, GetFileAttributes(FileOrFolder) | #PB_FileSystem_Hidden)
+  Else
+    Result = SetFileAttributes(FileOrFolder, GetFileAttributes(FileOrFolder) & (~#PB_FileSystem_Hidden))
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i SetReadOnly(FileOrFolder.s, State.i)
+  Protected Result.i
+  If (State)
+    Result = SetFileAttributes(FileOrFolder, GetFileAttributes(FileOrFolder) | #PB_FileSystem_ReadOnly)
+  Else
+    Result = SetFileAttributes(FileOrFolder, GetFileAttributes(FileOrFolder) & (~#PB_FileSystem_ReadOnly))
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
 CompilerEndIf
 
 Procedure ShowInExplorer(FileOrFolder.s)
