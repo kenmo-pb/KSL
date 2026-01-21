@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260105
+#KSL_Version = 20260119
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -1657,6 +1657,27 @@ EndProcedure
 
 ;- ----- File/Folder Functions -----
 
+Enumeration ; Flags for ScanFolder()
+  #KSL_ScanFolder_Absolute          = $001
+  #KSL_ScanFolder_Recursive         = $002
+  #KSL_ScanFolder_ExcludeHidden     = $004
+  #KSL_ScanFolder_IncludeFolders    = $008
+  #KSL_ScanFolder_ExcludeFiles      = $010
+  #KSL_ScanFolder_SortCaseSensitive = $020
+  #KSL_ScanFolder_NoSort            = $040
+  #KSL_ScanFolder_PreserveList      = $080
+  #KSL_ScanFolder_ReturnCount       = $100
+  ;
+  #KSL_ScanFolder_Relative       = 0
+  #KSL_ScanFolder_Nonrecursive   = 0
+  #KSL_ScanFolder_IncludeHidden  = 0
+  #KSL_ScanFolder_ExcludeFolders = 0
+  #KSL_ScanFolder_IncludeFiles   = 0
+  #KSL_ScanFolder_SortNoCase     = 0
+  ;
+  #KSL_ScanFolder_DefaultFlags   = 0
+EndEnumeration
+
 Macro GetCreatedDate(_File)
   GetFileDate((_File), #PB_Date_Created)
 EndMacro
@@ -1805,6 +1826,121 @@ Procedure.i WriteFileInteger(File.s, Value.i)
     WriteStringN(FN, Str(Value))
     CloseFile(FN)
     Result = #True
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i _ScanFolderToList(BaseFolder.s, RelSubfolder.s, Depth.i, List Entry.s(), Flags.i, Extensions.s, MaxSubfolderDepth.i)
+  Protected Result.i = #False
+  Protected DN.i = ExamineDirectory(#PB_Any, BaseFolder + RelSubfolder, "")
+  If (DN)
+    Result = #True
+    Protected Match.i
+    Protected Name.s, Ext.s
+    While (NextDirectoryEntry(DN))
+      Name = DirectoryEntryName(DN)
+      If (DirectoryEntryType(DN) = #PB_DirectoryEntry_File)
+        If (Not (Flags & #KSL_ScanFolder_ExcludeFiles))
+          Match = #True
+          If (Flags & #KSL_ScanFolder_ExcludeHidden)
+            If (IsHidden(BaseFolder + RelSubfolder + Name))
+              Match = #False
+            EndIf
+          EndIf
+          If (Match)
+            If (Extensions)
+              Ext = LCase(GetExtensionPart(Name))
+              If (Ext)
+                If (Not FindString(Extensions, " " + Ext + " "))
+                  Match = #False
+                EndIf
+              Else
+                Match = #False ; reject files without extensions, if extensions specified
+              EndIf
+            Else
+              ; no extensions specified: so accept all
+            EndIf
+          EndIf
+          If (Match)
+            AddElement(Entry())
+            Entry() = RelSubfolder + Name
+            If (Flags & #KSL_ScanFolder_Absolute)
+              Entry() = BaseFolder + Entry()
+            EndIf
+          EndIf
+        EndIf
+      Else
+        If ((Name <> ".") And (Name <> ".."))
+          If (Flags & #KSL_ScanFolder_IncludeFolders)
+            Match = #True
+            If (Flags & #KSL_ScanFolder_ExcludeHidden)
+              If (IsHidden(BaseFolder + RelSubfolder + Name))
+                Match = #False
+              EndIf
+            EndIf
+            If (Match)
+              AddElement(Entry())
+              Entry() = RelSubfolder + Name + #PS$
+              If (Flags & #KSL_ScanFolder_Absolute)
+                Entry() = BaseFolder + Entry()
+              EndIf
+            EndIf
+          EndIf
+          If (Flags & #KSL_ScanFolder_Recursive)
+            If ((MaxSubfolderDepth <= 0) Or (Depth < MaxSubfolderDepth))
+              _ScanFolderToList(BaseFolder, RelSubfolder + Name + #PS$, Depth + 1, Entry(), Flags, Extensions, MaxSubfolderDepth)
+            EndIf
+          EndIf
+        EndIf
+      EndIf
+    Wend
+    FinishDirectory(DN)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i ScanFolderToList(Folder.s, List Entry.s(), Flags.i = 0, Extensions.s = "", MaxSubfolderDepth.i = 0)
+  Protected Result.i = #False
+  If (Folder)
+    Folder = EnsurePathSeparator(Folder)
+    
+    If (Flags = #PB_Default)
+      Flags = #KSL_ScanFolder_DefaultFlags
+    EndIf
+    If (Flags & #KSL_ScanFolder_PreserveList)
+      LastElement(Entry())
+    Else
+      ClearList(Entry())
+    EndIf
+    Protected OriginalCount.i = ListSize(Entry())
+    
+    Protected *C.CHARACTER = @Extensions
+    While (*C\c)
+      Select (*C\c)
+        Case ',', ';', '*', '.'
+          *C\c = ' '
+      EndSelect
+      *C + SizeOf(CHARACTER)
+    Wend
+    Extensions = Trim(Extensions)
+    If (Extensions)
+      Extensions = LCase(Extensions)
+      Extensions = " " + Extensions + " "
+    EndIf
+    
+    Result = _ScanFolderToList(Folder, "", 0, Entry(), Flags, Extensions, MaxSubfolderDepth)
+    If (Result)
+      If (Flags & #KSL_ScanFolder_NoSort)
+        ; skip sorting
+      ElseIf (Flags & #KSL_ScanFolder_SortCaseSensitive)
+        SortList(Entry(), #PB_Sort_Ascending)
+      Else
+        SortList(Entry(), #PB_Sort_Ascending | #PB_Sort_NoCase)
+      EndIf
+      If (Flags & #KSL_ScanFolder_ReturnCount)
+        Result = (ListSize(Entry()) - OriginalCount)
+      EndIf
+    EndIf
   EndIf
   ProcedureReturn (Result)
 EndProcedure
