@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260119
+#KSL_Version = 20260128
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -117,7 +117,8 @@ EndMacro
 CompilerIf (PBLT(600))
   #PB_Backend_Asm = 0
   #PB_Backend_C   = 1
-  #PB_Compiler_Backend = #PB_Backend_Asm
+  #PB_Compiler_Backend   = #PB_Backend_Asm
+  #PB_Compiler_Optimizer = #False
 CompilerEndIf
 
 CompilerIf (Not Defined(PB_Compiler_64Bit, #PB_Constant))
@@ -577,6 +578,41 @@ Macro CharsToBytes(_Chars)
   ((_Chars) * #CharSize)
 EndMacro
 
+CompilerIf (PBGTE(640))
+Procedure _ReplaceStringInPlace(*StringVar.CHARACTER, StringToFind.s, StringToReplace.s, Mode.i)
+  Protected N.i = Len(StringToFind)
+  If ((N > 0) And (Len(StringToReplace) = N))
+    Protected Bytes.i = CharsToBytes(N)
+    If (Mode & #PB_String_NoCase)
+      While (*StringVar\c)
+        If (CompareMemoryString(*StringVar, @StringToFind, #PB_String_NoCase, N, #InternalStringFormat) = #PB_String_Equal)
+          CopyMemory(@StringToReplace, *StringVar, Bytes)
+          *StringVar + Bytes
+        Else
+          *StringVar + #CharSize
+        EndIf
+      Wend
+    Else
+      While (*StringVar\c)
+        If (CompareMemory(*StringVar, @StringToFind, Bytes) <> 0)
+          CopyMemory(@StringToReplace, *StringVar, Bytes)
+          *StringVar + Bytes
+        Else
+          *StringVar + #CharSize
+        EndIf
+      Wend
+    EndIf
+  EndIf
+EndProcedure
+Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
+  _ReplaceStringInPlace(@_StringVar, _StringToFind, _StringToReplace, (_Mode))
+EndMacro
+CompilerElse
+Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
+  ReplaceString(_StringVar, _StringToFind, _StringToReplace, (_Mode | #PB_String_InPlace))
+EndMacro
+CompilerEndIf
+
 Macro AddString(_List, _String)
   AddElement(_List)
   _List = _String
@@ -604,7 +640,7 @@ Macro SDQuote(_String)
   ReplaceString(_String, #SQ$, #DQ$)
 EndMacro
 Macro SDQuoteInPlace(_String)
-  ReplaceString(_String, #SQ$, #DQ$, #PB_String_InPlace)
+  ReplaceStringInPlace(_String, #SQ$, #DQ$)
 EndMacro
 
 Macro RemoveSpaces(_String)
@@ -621,6 +657,16 @@ EndMacro
 Macro StringByteLengthN(_String, _Format = #InternalStringFormat, _NumNulls = 1)
   (StringByteLength(_String, _Format) + ((_NumNulls) * NullTerminatorSize(_Format)))
 EndMacro
+
+CompilerIf (PBGTE(640))
+  Macro UpdateStringLength(_StringVar)
+    _StringVar = PeekS(@_StringVar)
+  EndMacro
+CompilerElse
+  Macro UpdateStringLength(_StringVar)
+    ;
+  EndMacro
+CompilerEndIf
 
 Procedure.i NullTerminatorSize(Format.i = #InternalStringFormat)
   Select (Format)
@@ -815,7 +861,7 @@ Procedure.s TrimWhitespace(String.s)
       Select (*C\c)
         Case #SP, #TAB, #CR, #LF
           ; ...
-        Default ; including #NUL
+        Default
           *Stop = *C
       EndSelect
       *C + SizeOf(CHARACTER)
@@ -1230,16 +1276,16 @@ EndProcedure
 Procedure.s NormalizePathSeparators(Path.s, SeparatorToUse.s = #PS$)
   Select (SeparatorToUse)
     Case "/"
-      ReplaceString(Path, "\", "/", #PB_String_InPlace)
+      ReplaceStringInPlace(Path, "\", "/")
     Case "\"
-      ReplaceString(Path, "/", "\", #PB_String_InPlace)
+      ReplaceStringInPlace(Path, "/", "\")
     Case ""
-      ReplaceString(Path, #NPS$, #PS$, #PB_String_InPlace)
+      ReplaceStringInPlace(Path, #NPS$, #PS$)
     Default
       CompilerIf (#Windows Or (#True))
-        ReplaceString(Path, "\", SeparatorToUse, #PB_String_InPlace)
+        ReplaceStringInPlace(Path, "\", SeparatorToUse)
       CompilerEndIf
-      ReplaceString(Path, "/", SeparatorToUse, #PB_String_InPlace)
+      ReplaceStringInPlace(Path, "/", SeparatorToUse)
   EndSelect
   ProcedureReturn (Path)
 EndProcedure
@@ -1515,15 +1561,15 @@ Procedure.s _GetUserDataPathFormat(Name.s)
   CompilerEndIf
   
   CompilerIf (#True)
-    ReplaceString(Name, "<", "_", #PB_String_InPlace)
-    ReplaceString(Name, ">", "_", #PB_String_InPlace)
-    ReplaceString(Name, ":", "_", #PB_String_InPlace)
-    ReplaceString(Name, #DQUOTE$, "_", #PB_String_InPlace)
-    ReplaceString(Name, "/", "_", #PB_String_InPlace)
-    ReplaceString(Name, "\", "_", #PB_String_InPlace)
-    ReplaceString(Name, "|", "_", #PB_String_InPlace)
-    ReplaceString(Name, "?", "_", #PB_String_InPlace)
-    ReplaceString(Name, "*", "_", #PB_String_InPlace)
+    ReplaceStringInPlace(Name, "<", "_")
+    ReplaceStringInPlace(Name, ">", "_")
+    ReplaceStringInPlace(Name, ":", "_")
+    ReplaceStringInPlace(Name, "/", "_")
+    ReplaceStringInPlace(Name, "\", "_")
+    ReplaceStringInPlace(Name, "|", "_")
+    ReplaceStringInPlace(Name, "?", "_")
+    ReplaceStringInPlace(Name, "*", "_")
+    ReplaceStringInPlace(Name, #DQUOTE$, "_")
   CompilerEndIf
   
   ProcedureReturn (Name)
@@ -2441,6 +2487,7 @@ Procedure.i _StringGadgetWithCtrlBackspace(hWnd.i, uMsg.i, wParam.i, lParam.i)
     If (N > 0)
       Protected Text.s = Space(N)
       SendMessage_(hWnd, #WM_GETTEXT, N + 1, @Text)
+      UpdateStringLength(Text)
       Protected StartPos.i, EndPos.i
       SendMessage_(hWnd, #EM_GETSEL, @StartPos, @EndPos)
       If ((StartPos >= 1) And (StartPos = EndPos))
@@ -2551,6 +2598,12 @@ CompilerEndIf
 
 CompilerEndIf ; Linux
 
+
+;-
+;- - Mac
+CompilerIf (#Mac)
+
+CompilerEndIf ; Mac
 
 CompilerEndIf
 ;-
