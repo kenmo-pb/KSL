@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260128
+#KSL_Version = 20260219
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -1699,6 +1699,46 @@ Procedure.s FindFirstFile(Pattern.s, Directory.s = "")
   ProcedureReturn (Result)
 EndProcedure
 
+Procedure.s UniqueFileName(Prefix.s = "", Suffix.s = "", Directory.s = "")
+  Protected Result.s = ""
+  If (Directory)
+    Directory = EnsurePathSeparator(Directory)
+  EndIf
+  Suffix = RemovePathSeparator(Suffix)
+  
+  Protected Attempt.i = 1
+  While (#True)
+    Protected Try.s = Directory + Prefix
+    If ((Attempt < 10) And (#True))
+      Try + "0"
+    EndIf
+    Try + Str(Attempt)
+    Try + Suffix
+    If (FileSize(Try) = -1)
+      Result = Try
+      Break
+    EndIf
+    Attempt + 1
+  Wend
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s UniqueDirectory(Prefix.s = "", Suffix.s = "", ParentDirectory.s = "", Create.i = #False)
+  Protected Result.s = ""
+  Result = UniqueFileName(Prefix, Suffix, ParentDirectory)
+  If (Result)
+    Result + #PS$
+    If (Create)
+      If (CreateDirectoryRecursive(Result))
+        ; OK
+      Else
+        Result = ""
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
 ;-
 
 ;- ----- File/Folder Functions -----
@@ -1746,6 +1786,13 @@ CompilerEndIf
 
 Macro WriteProgramEOF(_Program)
   WriteProgramData(_Program, #PB_Program_Eof, 0)
+EndMacro
+
+Macro RunProgramHidden(_ProgramName, _Parameter = "", _WorkingDirectory = "", _Flags = #Null)
+  RunProgram(_ProgramName, _Parameter, _WorkingDirectory, (_Flags) | #PB_Program_Hide)
+EndMacro
+Macro RunProgramOutputHidden(_ProgramName, _Parameter = "", _WorkingDirectory = "", _Flags = #Null)
+  RunProgramOutput(_ProgramName, _Parameter, _WorkingDirectory, (_Flags) | #PB_Program_Hide)
 EndMacro
 
 CompilerIf (#Windows)
@@ -1805,6 +1852,76 @@ Procedure ShowInExplorer(FileOrFolder.s)
       LaunchFolder(FileOrFolder)
     CompilerEndIf
   EndIf
+EndProcedure
+
+Procedure.s RunProgramOutput(ProgramName.s, Parameter.s = "", WorkingDirectory.s = "", Flags.i = #Null)
+  Protected Result.s = ""
+  If (Flags = #PB_Default)
+    Flags = #Null
+  EndIf
+  If (ProgramName)
+    
+    Protected StdOut.i = #False
+    Protected StdErr.i = #False
+    Flags & ~#PB_Program_Wait
+    Flags |  #PB_Program_Open
+    If (Flags & #PB_Program_Read)
+      StdOut = #True
+    EndIf
+    If (Flags & #PB_Program_Error)
+      StdErr = #True
+    Else
+      If (Not (Flags & #PB_Program_Read))
+        Flags | #PB_Program_Read
+        Flags | #PB_Program_Error
+        StdOut = #True
+        StdErr = #True
+      EndIf
+    EndIf
+    
+    Protected *Prog = RunProgram(ProgramName, Parameter, WorkingDirectory, Flags)
+    If (*Prog)
+      Protected StartTime.i = ElapsedMilliseconds()
+      Protected Line.s
+      While (ProgramRunning(*Prog))
+        
+        While (AvailableProgramOutput(*Prog) > 0)
+          Line = ReadProgramString(*Prog)
+          If (StdOut)
+            If (Result)
+              Result + #LF$
+            EndIf
+            Result + Line
+          EndIf
+        Wend
+        
+        While (#True)
+          ; Wish there was AvailableProgramError() !
+          Line = ReadProgramError(*Prog)
+          If (Line <> "")
+            If (StdErr)
+              If (Result)
+                Result + #LF$
+              EndIf
+              Result + Line
+            EndIf
+          Else
+            Break
+          EndIf
+        Wend
+        
+        If (ElapsedMilliseconds() - StartTime > 10*1000)
+          Delay(100)
+        ElseIf (ElapsedMilliseconds() - StartTime > 1*1000)
+          Delay(10)
+        Else
+          Delay(0)
+        EndIf
+      Wend
+      CloseProgram(*Prog)
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
 EndProcedure
 
 Procedure.s ReadFileToString(File.s, FileFormat.i = #PB_Default)
@@ -1988,6 +2105,14 @@ Procedure.i ScanFolderToList(Folder.s, List Entry.s(), Flags.i = 0, Extensions.s
       EndIf
     EndIf
   EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i ScanFolderCount(Folder.s, Flags.i = 0, Extensions.s = "", MaxSubfolderDepth.i = 0)
+  Protected Result.i = 0
+  NewList Temp.s()
+  Result = ScanFolderToList(Folder, Temp(), Flags | #KSL_ScanFolder_ReturnCount, Extensions, MaxSubfolderDepth)
+  FreeList(Temp())
   ProcedureReturn (Result)
 EndProcedure
 
