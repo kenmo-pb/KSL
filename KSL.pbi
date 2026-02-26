@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260219
+#KSL_Version = 20260225
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -142,6 +142,10 @@ CompilerIf (Not Defined(PB_MessageRequester_Warning, #PB_Constant))
 CompilerEndIf
 CompilerIf (Not Defined(PB_MessageRequester_Error, #PB_Constant))
   #PB_MessageRequester_Error = WindowsElse(#MB_ICONERROR, 0)
+CompilerEndIf
+
+CompilerIf (Not Defined(PB_FontRequester_Effects, #PB_Constant))
+  #PB_FontRequester_Effects = 0
 CompilerEndIf
 
 CompilerIf (PBGTE(600))
@@ -287,6 +291,11 @@ CompilerEndIf
 
 #ReplacementChar  = $FFFD
 #ReplacementChar$ = Chr(#ReplacementChar)
+
+#UTF16_HighSurrogate_Min = $D800
+#UTF16_HighSurrogate_Max = $DBFF
+#UTF16_LowSurrogate_Min  = $DC00
+#UTF16_LowSurrogate_Max  = $DFFF
 
 #Black   = $000000
 #White   = $FFFFFF
@@ -579,6 +588,7 @@ Macro CharsToBytes(_Chars)
 EndMacro
 
 CompilerIf (PBGTE(640))
+CompilerIf (#False) ; Confirm whether this approach actually works for PB 6.40+ string library!
 Procedure _ReplaceStringInPlace(*StringVar.CHARACTER, StringToFind.s, StringToReplace.s, Mode.i)
   Protected N.i = Len(StringToFind)
   If ((N > 0) And (Len(StringToReplace) = N))
@@ -607,6 +617,7 @@ EndProcedure
 Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
   _ReplaceStringInPlace(@_StringVar, _StringToFind, _StringToReplace, (_Mode))
 EndMacro
+CompilerEndIf
 CompilerElse
 Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
   ReplaceString(_StringVar, _StringToFind, _StringToReplace, (_Mode | #PB_String_InPlace))
@@ -733,8 +744,8 @@ Procedure.s ChrU(Value.i)
     If (Value > $FFFF)
       Protected Result.s = "  "
       Value = (Value - $10000)
-      PokeU(@Result + 0, $D800 + (Value >> 10) & $03FF)
-      PokeU(@Result + 2, $DC00 + (Value >>  0) & $03FF)
+      PokeU(@Result + 0, #UTF16_HighSurrogate_Min + (Value >> 10) & $03FF)
+      PokeU(@Result + 2, #UTF16_LowSurrogate_Min  + (Value >>  0) & $03FF)
       ProcedureReturn (Result)
     Else
       ProcedureReturn (Chr(Value))
@@ -869,6 +880,95 @@ Procedure.s TrimWhitespace(String.s)
     ProcedureReturn (PeekS(*Start, BytesToChars(*Stop - *Start) + 1))
   EndIf
   ProcedureReturn ("")
+EndProcedure
+
+Procedure.i _StringMatchesPattern(*String.CHARACTER, *Pattern.CHARACTER)
+  Protected Result.i = #True
+  While (#True)
+    Select (*Pattern\c)
+      Case '?'
+        If (*String\c = #NUL)
+          Result = #False
+          Break
+        EndIf
+      Case '*'
+        *Pattern + SizeOf(CHARACTER)
+        Result = #False
+        While (#True)
+          If (_StringMatchesPattern(*String, *Pattern))
+            Result = #True
+            Break 2
+          EndIf
+          If (*String\c = #NUL)
+            Break 2
+          EndIf
+          *String + SizeOf(CHARACTER)
+        Wend
+      Default
+        If (*String\c <> *Pattern\c)
+          Result = #False
+          Break
+        EndIf
+        If (*Pattern\c = #NUL)
+          Break
+        EndIf
+    EndSelect
+    *String  + SizeOf(CHARACTER)
+    *Pattern + SizeOf(CHARACTER)
+  Wend
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i StringMatchesPattern(String.s, Pattern.s, CaseInsensitive.i = #False)
+  ; Pattern supports
+  ;   '?' for exactly 1 character
+  ;   '*' for any number of characters (including 0!)
+  If (CaseInsensitive)
+    Protected LString.s  = LCase(String)
+    Protected LPattern.s = LCase(Pattern)
+    ProcedureReturn (_StringMatchesPattern(@LString, @LPattern))
+  Else
+    ProcedureReturn (_StringMatchesPattern(@String, @Pattern))
+  EndIf
+EndProcedure
+
+Procedure.i StringMatchesPatternAny(String.s, PatternList.s, CaseInsensitive.i = #False, PatternDelimiter.s = ";")
+  Protected Result.i = #False
+  If (PatternList And PatternDelimiter)
+    Protected N.i = 1 + CountString(PatternList, PatternDelimiter)
+    Protected i.i
+    For i = 1 To N
+      Protected Pattern.s = StringField(PatternList, i, PatternDelimiter)
+      Pattern = Trim(Pattern)
+      If (Pattern)
+        If (StringMatchesPattern(String, Pattern, CaseInsensitive))
+          Result = #True
+          Break
+        EndIf
+      EndIf
+    Next i
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i StringMatchesPatternAll(String.s, PatternList.s, CaseInsensitive.i = #False, PatternDelimiter.s = ";")
+  Protected Result.i = #False
+  If (PatternList And PatternDelimiter)
+    Protected N.i = 1 + CountString(PatternList, PatternDelimiter)
+    Protected i.i
+    For i = 1 To N
+      Protected Pattern.s = StringField(PatternList, i, PatternDelimiter)
+      Pattern = Trim(Pattern)
+      If (Pattern)
+        Result = #True
+        If (Not StringMatchesPattern(String, Pattern, CaseInsensitive))
+          Result = #False
+          Break
+        EndIf
+      EndIf
+    Next i
+  EndIf
+  ProcedureReturn (Result)
 EndProcedure
 
 Procedure.s ListToString(List StrList.s(), BetweenEach.s = #LF$, BeforeEach.s = "", AfterEach.s = "")
@@ -1008,6 +1108,108 @@ Procedure.i IterateStringsFromFilePath(FilePath.s, *CallbackWithUserData, UserDa
   EndIf
   
   ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i IsUTF16HighSurrogate(Codepoint.i)
+  ProcedureReturn (Bool((Codepoint >= #UTF16_HighSurrogate_Min) And (Codepoint <= #UTF16_HighSurrogate_Max)))
+EndProcedure
+Procedure.i IsUTF16LowSurrogate(Codepoint.i)
+  ProcedureReturn (Bool((Codepoint >= #UTF16_LowSurrogate_Min) And (Codepoint <= #UTF16_LowSurrogate_Max)))
+EndProcedure
+Procedure.i IsUTF16Surrogate(Codepoint.i)
+  ProcedureReturn (Bool(IsUTF16HighSurrogate(Codepoint) Or IsUTF16LowSurrogate(Codepoint)))
+EndProcedure
+
+Procedure.i IsUTF8ContinuationByte(Byte.i)
+  ProcedureReturn (Bool((Byte & %11000000) = %10000000))
+EndProcedure
+
+Procedure.i ExpectedUTF8ContinuationBytes(StartByte.i, *CodepointBits.INTEGER = #Null)
+  Protected Result.i
+  If (StartByte & %10000000) ; high bit set - multi-byte character
+    If ((StartByte & %11111000) = (%11110000)) ; start of 4-byte character
+      Result = 3
+      If (*CodepointBits)
+        *CodepointBits\i = StartByte & %00000111
+      EndIf
+    ElseIf ((StartByte & %11110000) = (%11100000)) ; start of 3-byte character
+      Result = 2
+      If (*CodepointBits)
+        *CodepointBits\i = StartByte & %00001111
+      EndIf
+    ElseIf ((StartByte & %11100000) = (%11000000)) ; start of 2-byte character
+      Result = 1
+      If (*CodepointBits)
+        *CodepointBits\i = StartByte & %00011111
+      EndIf
+    Else
+      Result = -1 ; invalid, or a continuation byte!
+    EndIf
+  Else ; high bit not set - basic 7-bit character
+    Result = 0
+    If (*CodepointBits)
+      *CodepointBits\i = StartByte & $7F
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i PeekCodepoint(*Pointer, Format.i = #InternalStringFormat, *PointerToNext.INTEGER = #Null)
+  Protected Result.i = -1 ; -1 means invalid/error
+  If (*Pointer)
+    Protected BytesUsed.i = 0
+    Protected NextValue.i
+    Select (Format)
+      Case #PB_Ascii
+        Result = PeekA(*Pointer)
+        BytesUsed = 1
+      Case #PB_Unicode
+        Result = PeekU(*Pointer)
+        BytesUsed = 2
+        If (IsUTF16HighSurrogate(Result))
+          NextValue = PeekU(*Pointer + 2)
+          If (IsUTF16LowSurrogate(NextValue))
+            Result = ((Result << 10) & $FFC00)
+            Result | (NextValue & $003FF)
+            Result + $10000
+            BytesUsed + 2
+          Else
+            Result = -1
+          EndIf
+        ElseIf (IsUTF16LowSurrogate(Result))
+          Result = -1
+        EndIf
+      Case #PB_UTF8
+        Result = PeekA(*Pointer)
+        BytesUsed = 1
+        Protected BytesLeft.i = ExpectedUTF8ContinuationBytes(Result, @Result)
+        If (BytesLeft >= 0)
+          While (BytesLeft > 0)
+            NextValue = PeekA(*Pointer + BytesUsed)
+            If (IsUTF8ContinuationByte(NextValue))
+              Result = (Result << 6) | (NextValue & %00111111)
+            Else
+              Result = -1
+              Break
+            EndIf
+            BytesUsed + 1
+            BytesLeft - 1
+          Wend
+        Else
+          Result = -1
+        EndIf
+    EndSelect
+    If (Result >= 0)
+      If (*PointerToNext)
+        *PointerToNext\i = *Pointer + BytesUsed
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i AscU(String.s)
+  ProcedureReturn (PeekCodepoint(@String))
 EndProcedure
 
 ;-
