@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260225
+#KSL_Version = 20260227
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -1212,6 +1212,25 @@ Procedure.i AscU(String.s)
   ProcedureReturn (PeekCodepoint(@String))
 EndProcedure
 
+Procedure.s URLParamEncoder(Text.s)
+  Protected Result.s = ""
+  Protected *C.CHARACTER = @Text
+  While (*C\c)
+    Select (*C\c)
+      Case 'a' To 'z', 'A' To 'Z', '0' To '9', '-', '_', '.';, '~'
+        Result + Chr(*C\c)
+      Default
+        If (*C\c < $80)
+          Result + "%" + RSet(UCase(Hex(*C\c)), 2, "0")
+        Else
+          ;? TODO encode as multi-byte UTF-8 !
+        EndIf
+    EndSelect
+    *C + SizeOf(CHARACTER)
+  Wend
+  ProcedureReturn (Result)
+EndProcedure
+
 ;-
 
 ;- ----- Color Functions -----
@@ -1945,6 +1964,8 @@ EndProcedure
 
 ;- ----- File/Folder Functions -----
 
+Declare.s RunProgramOutput(ProgramName.s, Parameter.s = "", WorkingDirectory.s = "", Flags.i = #Null)
+
 Enumeration ; Flags for ScanFolder()
   #KSL_ScanFolder_Absolute          = $001
   #KSL_ScanFolder_Recursive         = $002
@@ -2004,10 +2025,20 @@ CompilerIf (#Windows)
   Macro LaunchFolder(_Folder)
     RunProgram(_Folder)
   EndMacro
-CompilerElse
+CompilerElseIf (#Mac)
   Macro LaunchFile(_File)
     RunProgram("open", Quote(_File), GetPathPart(_File))
   EndMacro
+  Macro LaunchFolder(_Folder)
+    RunProgram("open", Quote(_Folder), _Folder)
+  EndMacro
+CompilerElseIf (#Linux)
+  Procedure LaunchFile(File.s)
+    Protected Output.s = RunProgramOutput("open", Quote(File), GetPathPart(File), #PB_Program_Error)
+    If (FindString(Output, "Failed"))
+      RunProgram(File, "", GetPathPart(File))
+    EndIf
+  EndProcedure
   Macro LaunchFolder(_Folder)
     RunProgram("open", Quote(_Folder), _Folder)
   EndMacro
@@ -2087,30 +2118,30 @@ Procedure.s RunProgramOutput(ProgramName.s, Parameter.s = "", WorkingDirectory.s
       Protected Line.s
       While (ProgramRunning(*Prog))
         
-        While (AvailableProgramOutput(*Prog) > 0)
-          Line = ReadProgramString(*Prog)
-          If (StdOut)
+        If (StdOut)
+          While (AvailableProgramOutput(*Prog) > 0)
+            Line = ReadProgramString(*Prog)
             If (Result)
               Result + #LF$
             EndIf
             Result + Line
-          EndIf
-        Wend
+          Wend
+        EndIf
         
-        While (#True)
-          ; Wish there was AvailableProgramError() !
-          Line = ReadProgramError(*Prog)
-          If (Line <> "")
-            If (StdErr)
+        If (StdErr)
+          While (#True)
+            ; Wish there was AvailableProgramError() !
+            Line = ReadProgramError(*Prog)
+            If (Line <> "")
               If (Result)
                 Result + #LF$
               EndIf
               Result + Line
+            Else
+              Break
             EndIf
-          Else
-            Break
-          EndIf
-        Wend
+          Wend
+        EndIf
         
         If (ElapsedMilliseconds() - StartTime > 10*1000)
           Delay(100)
