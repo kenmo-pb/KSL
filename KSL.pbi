@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260227
+#KSL_Version = 20260228
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -985,6 +985,23 @@ Procedure.s ListToString(List StrList.s(), BetweenEach.s = #LF$, BeforeEach.s = 
   Next
   PopListPosition(StrList())
   
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i SplitStringToList(String.s, List StrList.s(), Delimiter.s, ExcludeEmpty.i = #False)
+  Protected Result.i = 0
+  ClearList(StrList())
+  If (String And Delimiter)
+    Protected N.i = 1 + CountString(String, Delimiter)
+    Protected i.i
+    For i = 1 To N
+      AddString(StrList(), StringField(String, i, Delimiter))
+      If (ExcludeEmpty And (StrList() = ""))
+        DeleteElement(StrList())
+      EndIf
+    Next i
+    Result = ListSize(StrList())
+  EndIf
   ProcedureReturn (Result)
 EndProcedure
 
