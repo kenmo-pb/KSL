@@ -309,6 +309,9 @@ CompilerEndIf
 #ReplacementChar  = $FFFD
 #ReplacementChar$ = Chr(#ReplacementChar)
 
+#Unicode_Codepoint_Min = $0000
+#Unicode_Codepoint_Max = $10FFFF
+
 #UTF16_HighSurrogate_Min = $D800
 #UTF16_HighSurrogate_Max = $DBFF
 #UTF16_LowSurrogate_Min  = $DC00
@@ -1154,6 +1157,21 @@ Procedure.i IsUTF16Surrogate(Codepoint.i)
   ProcedureReturn (Bool(IsUTF16HighSurrogate(Codepoint) Or IsUTF16LowSurrogate(Codepoint)))
 EndProcedure
 
+Procedure.i RequiredUTF8Bytes(Codepoint.i)
+  If ((Codepoint >= #Unicode_Codepoint_Min) And (Codepoint <= #Unicode_Codepoint_Max))
+    If (Codepoint <= $7F)
+      ProcedureReturn (1)
+    ElseIf (Codepoint <= $7FF)
+      ProcedureReturn (2)
+    ElseIf (Codepoint <= $FFFF)
+      ProcedureReturn (3)
+    Else
+      ProcedureReturn (4)
+    EndIf
+  Else
+    ProcedureReturn (0)
+  EndIf
+EndProcedure
 Procedure.i IsUTF8ContinuationByte(Byte.i)
   ProcedureReturn (Bool((Byte & %11000000) = %10000000))
 EndProcedure
@@ -1254,10 +1272,31 @@ Procedure.s URLParamEncoder(Text.s)
       Case 'a' To 'z', 'A' To 'Z', '0' To '9', '-', '_', '.';, '~'
         Result + Chr(*C\c)
       Default
-        If (*C\c < $80)
+        If (*C\c = $20) ; space
+          ;Result + "%20"
+          Result + "+"
+        ElseIf (*C\c < $80) ; single-byte char
           Result + "%" + RSet(UCase(Hex(*C\c)), 2, "0")
-        Else
-          ;? TODO encode as multi-byte UTF-8 !
+        Else ; multi-byte char
+          ; Could possibly utilize NumBytes = PokeS(@Long, #PB_UTF8|#PB_String_NoZero) here, but would still need to detect and handle UTF-16 surrogate pairs!
+          Protected Codepoint.i = PeekCodepoint(*C, #InternalStringFormat, @*C)
+          If (Codepoint >= 0)
+            Select (RequiredUTF8Bytes(Codepoint))
+              Case 4
+                Result + "%" + RSet(UCase(Hex( %11110000 | ((Codepoint >> 18) & %111)    )), 2, "0")
+                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >> 12) & %111111) )), 2, "0")
+                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  6) & %111111) )), 2, "0")
+                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  0) & %111111) )), 2, "0")
+              Case 3
+                Result + "%" + RSet(UCase(Hex( %11100000 | ((Codepoint >> 12) & %1111)   )), 2, "0")
+                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  6) & %111111) )), 2, "0")
+                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  0) & %111111) )), 2, "0")
+              Case 2
+                Result + "%" + RSet(UCase(Hex( %11000000 | ((Codepoint >> 6) & %11111)  )), 2, "0")
+                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >> 0) & %111111) )), 2, "0")
+            EndSelect
+            *C - SizeOf(CHARACTER)
+          EndIf
         EndIf
     EndSelect
     *C + SizeOf(CHARACTER)
