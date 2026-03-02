@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260228
+#KSL_Version = 20260302
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -1975,6 +1975,44 @@ Procedure.s UniqueDirectory(Prefix.s = "", Suffix.s = "", ParentDirectory.s = ""
     EndIf
   EndIf
   ProcedureReturn (Result)
+EndProcedure
+
+Global NewList _KSL_EnvironmentPath.s()
+
+Procedure.i ExamineEnvironmentPaths()
+  ClearList(_KSL_EnvironmentPath())
+  
+  CompilerIf (#Windows)
+    SplitStringToList(GetEnvironmentVariable("PATH"), _KSL_EnvironmentPath(), ";", #True)
+    ForEach (_KSL_EnvironmentPath())
+      _KSL_EnvironmentPath() = NormalizePathSeparators(_KSL_EnvironmentPath())
+    Next
+  CompilerElse
+    SplitStringToList(GetEnvironmentVariable("PATH"), _KSL_EnvironmentPath(), ":", #True)
+  CompilerEndIf
+  
+  ForEach (_KSL_EnvironmentPath())
+    _KSL_EnvironmentPath() = EnsurePathSeparator(_KSL_EnvironmentPath())
+  Next
+  DeduplicateStringList(_KSL_EnvironmentPath())
+  ResetList(_KSL_EnvironmentPath())
+  ProcedureReturn (ListSize(_KSL_EnvironmentPath()))
+EndProcedure
+
+Procedure.i NextEnvironmentPath()
+  If (NextElement(_KSL_EnvironmentPath()))
+    ProcedureReturn (#True)
+  Else
+    ProcedureReturn (#False)
+  EndIf
+EndProcedure
+
+Procedure.s EnvironmentPath()
+  If (ListIndex(_KSL_EnvironmentPath()) >= 0)
+    ProcedureReturn (_KSL_EnvironmentPath())
+  Else
+    ProcedureReturn ("")
+  EndIf
 EndProcedure
 
 ;-
