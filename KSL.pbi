@@ -607,41 +607,45 @@ Macro CharsToBytes(_Chars)
   ((_Chars) * #CharSize)
 EndMacro
 
-CompilerIf (PBGTE(640))
-CompilerIf (#False) ; Confirm whether this approach actually works for PB 6.40+ string library!
-Procedure _ReplaceStringInPlace(*StringVar.CHARACTER, StringToFind.s, StringToReplace.s, Mode.i)
-  Protected N.i = Len(StringToFind)
-  If ((N > 0) And (Len(StringToReplace) = N))
-    Protected Bytes.i = CharsToBytes(N)
-    If (Mode & #PB_String_NoCase)
-      While (*StringVar\c)
-        If (CompareMemoryString(*StringVar, @StringToFind, #PB_String_NoCase, N, #InternalStringFormat) = #PB_String_Equal)
-          CopyMemory(@StringToReplace, *StringVar, Bytes)
-          *StringVar + Bytes
+CompilerIf (PBGTE(640)) ; PB 6.40 dropped #PB_String_InPlace because it has side effects, strings are now passed "upward" by-reference!
+  CompilerIf (#False) ; Confirm whether this approach actually works for PB 6.40+ string library!
+    Procedure _ReplaceStringInPlace(*StringVar.CHARACTER, StringToFind.s, StringToReplace.s, Mode.i)
+      Protected N.i = Len(StringToFind)
+      If ((N > 0) And (Len(StringToReplace) = N))
+        Protected Bytes.i = CharsToBytes(N)
+        If (Mode & #PB_String_NoCase)
+          While (*StringVar\c)
+            If (CompareMemoryString(*StringVar, @StringToFind, #PB_String_NoCase, N, #InternalStringFormat) = #PB_String_Equal)
+              CopyMemory(@StringToReplace, *StringVar, Bytes)
+              *StringVar + Bytes
+            Else
+              *StringVar + #CharSize
+            EndIf
+          Wend
         Else
-          *StringVar + #CharSize
+          While (*StringVar\c)
+            If (CompareMemory(*StringVar, @StringToFind, Bytes) <> 0)
+              CopyMemory(@StringToReplace, *StringVar, Bytes)
+              *StringVar + Bytes
+            Else
+              *StringVar + #CharSize
+            EndIf
+          Wend
         EndIf
-      Wend
-    Else
-      While (*StringVar\c)
-        If (CompareMemory(*StringVar, @StringToFind, Bytes) <> 0)
-          CopyMemory(@StringToReplace, *StringVar, Bytes)
-          *StringVar + Bytes
-        Else
-          *StringVar + #CharSize
-        EndIf
-      Wend
-    EndIf
-  EndIf
-EndProcedure
-Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
-  _ReplaceStringInPlace(@_StringVar, _StringToFind, _StringToReplace, (_Mode))
-EndMacro
-CompilerEndIf
+      EndIf
+    EndProcedure
+    Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
+      _ReplaceStringInPlace(@_StringVar, _StringToFind, _StringToReplace, (_Mode))
+    EndMacro
+  CompilerElse
+    Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
+      _StringVar = ReplaceString(_StringVar, _StringToFind, _StringToReplace, (_Mode)) ; not actually in-place anymore! but should be code-compatible
+    EndMacro
+  CompilerEndIf
 CompilerElse
-Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
-  ReplaceString(_StringVar, _StringToFind, _StringToReplace, (_Mode | #PB_String_InPlace))
-EndMacro
+  Macro ReplaceStringInPlace(_StringVar, _StringToFind, _StringToReplace, _Mode = #PB_String_CaseSensitive)
+    ReplaceString(_StringVar, _StringToFind, _StringToReplace, (_Mode | #PB_String_InPlace))
+  EndMacro
 CompilerEndIf
 
 Macro AddString(_List, _String)
