@@ -1008,6 +1008,22 @@ Procedure.s ListToString(List StrList.s(), BetweenEach.s = #LF$, BeforeEach.s = 
   ProcedureReturn (Result)
 EndProcedure
 
+Procedure.i DeduplicateStringList(List StrList.s())
+  Protected Result.i = 0
+  NewMap Found.i()
+  ForEach StrList()
+    If (FindMapElement(Found(), StrList()))
+      DeleteElement(StrList())
+      Result + 1
+    Else
+      AddMapElement(Found(), StrList(), #PB_Map_NoElementCheck)
+    EndIf
+  Next
+  ClearMap(Found())
+  FreeMap(Found())
+  ProcedureReturn (Result)
+EndProcedure
+
 Procedure.i SplitStringToList(String.s, List StrList.s(), Delimiter.s, ExcludeEmpty.i = #False)
   Protected Result.i = 0
   ClearList(StrList())
