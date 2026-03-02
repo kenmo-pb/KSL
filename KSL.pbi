@@ -90,12 +90,29 @@ CompilerEndIf
 #Windows = WindowsElse(#True, #False)
 #Linux   = LinuxElse(#True, #False)
 #Mac     = MacElse(#True, #False)
+#Unix    = WLMO(#False, #True, #True, #True)
 
 #PS   = WindowsElse('\', '/')
 #PS$  = WindowsElse("\", "/")
 #NPS  = WindowsElse('/', '\')
 #NPS$ = WindowsElse("/", "\")
 #EOL$ = WindowsElse(#CRLF$, #LF$)
+
+CompilerIf (#Unix)
+  Macro UnixElse(_UnixExpr, _ElseExpr)
+    _UnixExpr
+  EndMacro
+  Macro OnUnix(_Expression)
+    _Expression
+  EndMacro
+CompilerElse
+  Macro UnixElse(_UnixExpr, _ElseExpr)
+    _ElseExpr
+  EndMacro
+  Macro OnUnix(_Expression)
+    ;
+  EndMacro
+CompilerEndIf
 
 ;-
 
@@ -568,12 +585,12 @@ Enumeration ; Flags for the Interate procedures
   #KSL_ExcludeWhitespace = $0002
 EndEnumeration
 
-Global Dim _StrBool.s((2)-1)
-_StrBool(0) = "false"
-_StrBool(1) = "true"
+Global Dim _KSL_StrBool.s((2)-1)
+_KSL_StrBool(0) = "false"
+_KSL_StrBool(1) = "true"
 
 Macro StrBool(_Expr)
-  _StrBool(Bool(_Expr))
+  _KSL_StrBool(Bool(_Expr))
 EndMacro
 
 Macro HexLong(_Number)
