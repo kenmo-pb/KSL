@@ -2179,13 +2179,15 @@ CompilerElseIf (#Mac)
   EndMacro
 CompilerElseIf (#Linux)
   Procedure LaunchFile(File.s)
-    Protected Output.s = RunProgramOutput("open", Quote(File), GetPathPart(File), #PB_Program_Error)
+    ;Protected Output.s = RunProgramOutput("open", Quote(File), GetPathPart(File), #PB_Program_Error)
+    Protected Output.s = RunProgramOutput("xdg-open", Quote(File), GetPathPart(File), #PB_Program_Error)
     If (FindString(Output, "Failed"))
       RunProgram(File, "", GetPathPart(File))
     EndIf
   EndProcedure
   Macro LaunchFolder(_Folder)
-    RunProgram("open", Quote(_Folder), _Folder)
+    ;RunProgram("open", Quote(_Folder), _Folder)
+    RunProgram("xdg-open", Quote(_Folder), _Folder)
   EndMacro
 CompilerEndIf
 
@@ -2882,6 +2884,9 @@ Procedure LaunchURL(URL.s)
     EndIf
     CompilerIf (#Windows)
       RunProgram(URL)
+    CompilerElseIf (#Linux)
+      ;RunProgram("open", Quote(URL), "")
+      RunProgram("xdg-open", Quote(URL), "")
     CompilerElse
       RunProgram("open", Quote(URL), "")
     CompilerEndIf
