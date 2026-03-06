@@ -151,6 +151,12 @@ CompilerEndIf
 #PB_Compiler_Examples3DData      = #PB_Compiler_Home + WindowsElse("Examples\3D\Data\", "examples/3d/Data/")
 #PB_Compiler_ExamplesSourcesData = #PB_Compiler_Home + WindowsElse("Examples\Sources\Data\", "examples/sources/Data/")
 
+CompilerIf (PBGTE(610))
+  #RequestersSupportParentID = #True
+CompilerElse
+  #RequestersSupportParentID = #False
+CompilerEndIf
+
 CompilerIf (Not Defined(PB_MessageRequester_Info, #PB_Constant))
   #PB_MessageRequester_Info = WindowsElse(#MB_ICONINFORMATION, 0)
 CompilerEndIf
@@ -341,7 +347,7 @@ CompilerEndIf
 
 ;- ----- Dialog Functions -----
 
-CompilerIf (PBGTE(610))
+CompilerIf (#RequestersSupportParentID)
   Macro Info(_Text, _ParentID = #Null)
     MessageRequester("Information", _Text, #PB_MessageRequester_Info, (_ParentID))
   EndMacro
@@ -375,6 +381,10 @@ CompilerElse
   EndMacro
 CompilerEndIf
 
+#Confirm_Yes    = #PB_MessageRequester_Yes
+#Confirm_No     = #PB_MessageRequester_No
+#Confirm_Cancel = #PB_MessageRequester_Cancel
+
 Procedure.i Confirm(Text.s, AllowCancel.i = #False, ParentID.i = #Null)
   Protected Result.i
   
@@ -389,13 +399,17 @@ Procedure.i Confirm(Text.s, AllowCancel.i = #False, ParentID.i = #Null)
   CompilerElse
     Flags | #PB_MessageRequester_Warning;#PB_MessageRequester_Info
   CompilerEndIf
-  CompilerIf (PBGTE(610))
+  CompilerIf (#RequestersSupportParentID)
     Result = MessageRequester("Confirm", Text, Flags, ParentID)
   CompilerElse
     Result = MessageRequester("Confirm", Text, Flags)
   CompilerEndIf
   ProcedureReturn (Result)
 EndProcedure
+
+Macro ConfirmYes(_Text, _AllowCancel = #False, _ParentID = #Null)
+  (Bool(Confirm(_Text, (_AllowCancel), (_ParentID)) = #Confirm_Yes))
+EndMacro
 
 ;-
 
