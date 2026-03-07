@@ -2225,10 +2225,29 @@ Procedure.i SetReadOnly(FileOrFolder.s, State.i)
 EndProcedure
 CompilerEndIf
 
+Procedure.s Which(FileName.s)
+  Protected Result.s = ""
+  CompilerIf (#Unix)
+    Protected Output.s = RunProgramOutputHidden("which", FileName)
+    If (Output And FileExists(Output))
+      Result = Output
+    EndIf
+  CompilerEndIf
+  ProcedureReturn (Result)
+EndProcedure
+
 Procedure ShowInExplorer(FileOrFolder.s)
   If (FileExists(FileOrFolder))
     CompilerIf (#Windows)
       RunProgram("explorer.exe", "/SELECT," + Quote(FileOrFolder), "")
+    CompilerElseIf (#Linux)
+      Protected Explorer.s
+      Explorer = Which("io.elementary.files")
+      If (Explorer)
+        RunProgram(Explorer, QuoteIfSpaces(FileOrFolder), "")
+        ProcedureReturn
+      EndIf
+      LaunchFolder(GetPathPart(FileOrFolder))
     CompilerElse
       LaunchFolder(GetPathPart(FileOrFolder))
     CompilerEndIf
