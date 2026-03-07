@@ -2227,12 +2227,36 @@ CompilerEndIf
 
 Procedure.s Which(FileName.s)
   Protected Result.s = ""
-  CompilerIf (#Unix)
-    Protected Output.s = RunProgramOutputHidden("which", FileName)
-    If (Output And FileExists(Output))
-      Result = Output
-    EndIf
-  CompilerEndIf
+  If (FileName And (Not FindString(FileName, "/")))
+    CompilerIf (#Windows)
+      If (Not FindString(FileName, "\"))
+        If (ExamineEnvironmentPaths())
+          NewList PathExt.s()
+          If (SplitStringToList(GetEnvironmentVariable("PATHEXT"), PathExt(), ";", #True))
+            DeduplicateStringList(PathExt())
+            FileName = RTrim(FileName, ".") + "."
+            While (NextEnvironmentPath())
+              ForEach (PathExt())
+                Protected TryPath.s = EnvironmentPath() + FileName + LTrim(PathExt(), ".")
+                If (FileExists(TryPath))
+                  If (#True)
+                    Result = TryPath
+                    Break 2
+                  EndIf
+                EndIf
+              Next
+            Wend
+            ClearList(PathExt())
+          EndIf
+        EndIf
+      EndIf
+    CompilerElseIf (#Unix)
+      Protected Output.s = RunProgramOutputHidden("which", FileName)
+      If (Output And FileExists(Output))
+        Result = Output
+      EndIf
+    CompilerEndIf
+  EndIf
   ProcedureReturn (Result)
 EndProcedure
 
@@ -2240,14 +2264,24 @@ Procedure ShowInExplorer(FileOrFolder.s)
   If (FileExists(FileOrFolder))
     CompilerIf (#Windows)
       RunProgram("explorer.exe", "/SELECT," + Quote(FileOrFolder), "")
+      
     CompilerElseIf (#Linux)
-      Protected Explorer.s
-      Explorer = Which("io.elementary.files")
-      If (Explorer)
-        RunProgram(Explorer, QuoteIfSpaces(FileOrFolder), "")
-        ProcedureReturn
+      NewList TryCommand.s()
+      ; Add more here, as "<executable>|<args>" where % char will be replaced with quoted FileOrFolder
+      AddString(TryCommand(), "io.elementary.files|%")
+      
+      Protected Executable.s
+      ForEach (TryCommand())
+        Executable = Which(StringField(TryCommand(), 1, "|"))
+        If (Executable)
+          RunProgram(Executable, ReplaceString(StringField(TryCommand(), 2, "|"), "%", Quote(FileOrFolder)), GetPathPart(FileOrFolder))
+          Break
+        EndIf
+      Next
+      If (Executable = "")
+        LaunchFolder(GetPathPart(FileOrFolder))
       EndIf
-      LaunchFolder(GetPathPart(FileOrFolder))
+    
     CompilerElse
       LaunchFolder(GetPathPart(FileOrFolder))
     CompilerEndIf
