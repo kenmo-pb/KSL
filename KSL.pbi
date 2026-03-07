@@ -1370,6 +1370,18 @@ Macro Opaque(_RGB)
   (SetAlpha((_RGB), $FF))
 EndMacro
 
+Procedure.i RandomColor(Alpha.i = $00)
+  ProcedureReturn (RGBA(Random(255), Random(255), Random(255), Alpha))
+EndProcedure
+
+Procedure.i RandomBasicColor(Alpha.i = $00)
+  ProcedureReturn (RGBA(Random(1)*255, Random(1)*255, Random(1)*255, Alpha))
+EndProcedure
+
+Procedure.i Gray(Value.i, Alpha.i = $00)
+  ProcedureReturn (RGBA(Value, Value, Value, Alpha))
+EndProcedure
+
 Procedure.i SwapRGB(Color.i)
   ProcedureReturn (RGBA(Blue(Color), Green(Color), Red(Color), Alpha(Color)))
 EndProcedure
