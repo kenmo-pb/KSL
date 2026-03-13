@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260302
+#KSL_Version = 20260313
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -21,7 +21,7 @@ CompilerEndIf
 ;- ----- Compile Switches -----
 
 CompilerIf (Not Defined(KSL_ExcludeNetworkFunctions, #PB_Constant))
-  #KSL_ExcludeNetworkFunctions = #False
+  #KSL_ExcludeNetworkFunctions = #True
 CompilerEndIf
 
 ;-
