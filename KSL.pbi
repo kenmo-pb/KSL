@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260313
+#KSL_Version = 20260318
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -816,9 +816,13 @@ EndProcedure
 Procedure.i FindStringOccurrence(String.s, StringToFind.s, Occurrence.i, Mode.i = #PB_String_CaseSensitive)
   Protected Result.i = 0
   Protected Found.i  = 0
+  If (Mode = #PB_String_NoCase)
+    String = LCase(String)
+    StringToFind = LCase(StringToFind)
+  EndIf
   Protected i.i = 1
   While (Found < Occurrence)
-    i = FindString(String, StringToFind, i, Mode)
+    i = FindString(String, StringToFind, i, #PB_String_CaseSensitive)
     If (i)
       Found + 1
       If (Found = Occurrence)
@@ -836,15 +840,13 @@ EndProcedure
 
 Procedure.i FindLastOccurrence(String.s, StringToFind.s, Mode.i = #PB_String_CaseSensitive)
   Protected Result.i = 0
-  Protected LString.s = String
-  Protected LStringToFind.s = StringToFind
   If (Mode = #PB_String_NoCase)
-    LString = LCase(LString)
-    LStringToFind = LCase(LStringToFind)
+    String = LCase(String)
+    StringToFind = LCase(StringToFind)
   EndIf
   Protected i.i = CountString(String, StringToFind)
   If (i > 0)
-    Result = FindStringOccurrence(String, StringToFind, i, Mode)
+    Result = FindStringOccurrence(String, StringToFind, i, #PB_String_CaseSensitive)
   EndIf
   ProcedureReturn (Result)
 EndProcedure
