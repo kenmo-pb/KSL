@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260318
+#KSL_Version = 20260324
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -146,6 +146,17 @@ CompilerIf (Not Defined(PB_Compiler_64Bit, #PB_Constant))
     #PB_Compiler_32Bit = #True
     #PB_Compiler_64Bit = #False
   CompilerEndIf
+CompilerEndIf
+
+CompilerIf (PBGTE(540))
+  #GTK2 = Subsystem("gtk2")
+  #GTK3 = Bool(Not #GTK2)
+CompilerElseIf (PBGTE(520))
+  #GTK3 = Subsystem("gtk3")
+  #GTK2 = Bool(Not #GTK3)
+CompilerElse
+  #GTK2 = #True
+  #GTK3 = #False
 CompilerEndIf
 
 #PB_Compiler_Examples3DData      = #PB_Compiler_Home + WindowsElse("Examples\3D\Data\", "examples/3d/Data/")
@@ -3170,6 +3181,35 @@ CompilerIf (#True)
     EndIf
   EndIf
 CompilerEndIf
+
+#KSL_DisplayServer_Unknown = 0
+#KSL_DisplayServer_X11     = 1
+#KSL_DisplayServer_Wayland = 2
+
+Procedure.i GetDisplayServer()
+  Protected Result.i = #KSL_DisplayServer_Unknown
+  Select (LCase(GetEnvironmentVariable("XDG_SESSION_TYPE")))
+    Case "x11"
+      Result = #KSL_DisplayServer_X11
+    Case "wayland"
+      Result = #KSL_DisplayServer_Wayland
+    Default
+      If (FindString(GetEnvironmentVariable("DESKTOP_SESSION"), "wayland", 1, #PB_String_NoCase))
+        Result = #KSL_DisplayServer_Wayland
+      ElseIf (FindString(GetEnvironmentVariable("WAYLAND_DISPLAY"), "wayland", 1, #PB_String_NoCase))
+        Result = #KSL_DisplayServer_Wayland
+      EndIf
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i IsX11Session()
+  ProcedureReturn (Bool(GetDisplayServer() = #KSL_DisplayServer_X11))
+EndProcedure
+
+Procedure.i IsWaylandSession()
+  ProcedureReturn (Bool(GetDisplayServer() = #KSL_DisplayServer_Wayland))
+EndProcedure
 
 CompilerEndIf ; Linux
 
