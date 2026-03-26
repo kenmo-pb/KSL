@@ -2738,6 +2738,195 @@ Procedure SelectGadget(Gadget.i)
   SetActiveGadget(Gadget)
 EndProcedure
 
+CompilerIf (#True)
+
+Procedure.i StandardGadgetHeight(Type.i, Flags.i = #PB_Default)
+  Protected Result.i = 0
+  
+  Static ButtonHeight.i
+  Static StringHeight.i
+  Static TextHeight.i
+  Static CheckBoxHeight.i
+  Static OptionHeight.i
+  Static CalendarHeight.i
+  Static HyperLinkHeight.i
+  Static ComboBoxHeight.i
+  
+  ; As of PB 6.21, 0 = #PB_GadgetType_Unknown,
+  ; and there are 35 valid types, values 1-35.
+  If ((Type >= 1) And (Type <= 35))
+    If (Flags = #PB_Default)
+      Flags = #Null
+    EndIf
+    Select (Type)
+      Case #PB_GadgetType_Unknown
+        Result = 0
+        
+      Case #PB_GadgetType_Button
+        If (ButtonHeight = 0)
+          Protected Dummy.i
+          Dummy = ButtonGadget(#PB_Any, 0, 0, 20, 20, " ")
+          If (Dummy)
+            ButtonHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+          EndIf
+        EndIf
+        Result = ButtonHeight
+        
+      Case #PB_GadgetType_String
+        If ((StringHeight = 0) Or (Flags))
+          Dummy = StringGadget(#PB_Any, 0, 0, 20, 20, " ", Flags)
+          If (Dummy)
+            StringHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+          EndIf
+        EndIf
+        Result = StringHeight
+        
+      Case #PB_GadgetType_Text
+        If ((TextHeight = 0) Or (Flags))
+          Dummy = TextGadget(#PB_Any, 0, 0, 20, 20, " ", Flags)
+          If (Dummy)
+            TextHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+          EndIf
+        EndIf
+        Result = TextHeight
+        
+      Case #PB_GadgetType_HyperLink
+        If ((HyperLinkHeight = 0) Or (Flags))
+          Dummy = HyperLinkGadget(#PB_Any, 0, 0, 20, 20, " ", #Black, Flags)
+          If (Dummy)
+            HyperLinkHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+          EndIf
+        EndIf
+        Result = HyperLinkHeight
+        
+      Case #PB_GadgetType_CheckBox
+        If (CheckBoxHeight = 0)
+          Dummy = CheckBoxGadget(#PB_Any, 0, 0, 20, 20, " ")
+          If (Dummy)
+            CheckBoxHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+          EndIf
+        EndIf
+        Result = CheckBoxHeight
+        
+      Case #PB_GadgetType_Option
+        If (OptionHeight = 0)
+          Dummy = OptionGadget(#PB_Any, 0, 0, 20, 20, " ")
+          If (Dummy)
+            OptionHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+            FreeGadget(TextGadget(#PB_Any, 0, 0, 20, 20, " "))
+          EndIf
+        EndIf
+        Result = OptionHeight
+        
+      Case #PB_GadgetType_Calendar
+        If ((CalendarHeight = 0) Or (Flags))
+          Dummy = CalendarGadget(#PB_Any, 0, 0, 20, 20, 0, Flags)
+          If (Dummy)
+            CalendarHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+          EndIf
+        EndIf
+        Result = CalendarHeight
+        
+      Case #PB_GadgetType_ComboBox
+        If (ComboBoxHeight = 0)
+          Dummy = ComboBoxGadget(#PB_Any, 0, 0, 20, 20, 0)
+          If (Dummy)
+            ComboBoxHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
+            FreeGadget(Dummy)
+          EndIf
+        EndIf
+        Result = ComboBoxHeight
+      
+      Case #PB_GadgetType_ProgressBar
+        ; Assume "one TextGadget" height
+        Result = StandardGadgetHeight(#PB_GadgetType_Text)
+        
+      Case #PB_GadgetType_TrackBar
+        ; Assume "one ButtonGadget" height
+        Result = StandardGadgetHeight(#PB_GadgetType_Button)
+        
+      Case #PB_GadgetType_IPAddress, #PB_GadgetType_Shortcut
+        ; Assume "one StringGadget" height
+        Result = StandardGadgetHeight(#PB_GadgetType_String)
+        
+      Case #PB_GadgetType_Date, #PB_GadgetType_ExplorerCombo, #PB_GadgetType_Spin
+        ; Assume "one ComboBoxGadget" height
+        Result = StandardGadgetHeight(#PB_GadgetType_ComboBox)
+        
+      Case #PB_GadgetType_Editor, #PB_GadgetType_ListIcon, #PB_GadgetType_ListView, #PB_GadgetType_Scintilla, #PB_GadgetType_Tree
+        ; Assume "multiple StringGadget" height
+        Result = 4 * StandardGadgetHeight(#PB_GadgetType_String)
+        
+      Case #PB_GadgetType_ExplorerList, #PB_GadgetType_ExplorerTree, #PB_GadgetType_Web, #PB_GadgetType_WebView
+        ; Assume "even more StringGadget" height
+        Result = 8 * StandardGadgetHeight(#PB_GadgetType_String)
+        
+      Case #PB_GadgetType_ScrollBar
+        CompilerIf (#PB_Compiler_OS = #PB_OS_Windows)
+          Result = GetSystemMetrics_(#SM_CYHSCROLL)
+        CompilerElse
+          Result = StandardGadgetHeight(#PB_GadgetType_Text)
+        CompilerEndIf
+      
+      Case #PB_GadgetType_ButtonImage
+        ; Assume same as a standard/text button ?
+        Result = StandardGadgetHeight(#PB_GadgetType_Button)
+        
+      Case #PB_GadgetType_Frame
+        ; Special case, for FrameGadget, return a reasonable text offset for the header itself
+        Result = StandardGadgetHeight(#PB_GadgetType_String)
+      
+      Case #PB_GadgetType_Canvas, #PB_GadgetType_Container, #PB_GadgetType_Image, #PB_GadgetType_MDI, #PB_GadgetType_OpenGL, #PB_GadgetType_Panel, #PB_GadgetType_ScrollArea, #PB_GadgetType_Splitter
+        ; These don't really make sense to have a "standard height" !
+        Result = StandardGadgetHeight(#PB_GadgetType_Button)
+      
+    EndSelect
+    
+    If (Result <= 0)
+      Result = 20
+    EndIf
+  EndIf
+  
+  ProcedureReturn (Result)
+EndProcedure
+
+Macro StandardButtonHeight()
+  StandardGadgetHeight(#PB_GadgetType_Button)
+EndMacro
+
+Macro StandardCheckBoxHeight()
+  StandardGadgetHeight(#PB_GadgetType_CheckBox)
+EndMacro
+
+Macro StandardComboBoxHeight()
+  StandardGadgetHeight(#PB_GadgetType_ComboBox)
+EndMacro
+
+Macro StandardOptionGadgetHeight()
+  StandardGadgetHeight(#PB_GadgetType_Option)
+EndMacro
+
+Macro StandardScrollBarHeight()
+  StandardGadgetHeight(#PB_GadgetType_ScrollBar)
+EndMacro
+
+Macro StandardStringGadgetHeight(_Flags = #PB_Default)
+  StandardGadgetHeight(#PB_GadgetType_String, (_Flags))
+EndMacro
+
+Macro StandardTextGadgetHeight(_Flags = #PB_Default)
+  StandardGadgetHeight(#PB_GadgetType_Text, (_Flags))
+EndMacro
+
+CompilerEndIf
+
 ;-
 
 ;- ----- Window/Desktop Functions -----
