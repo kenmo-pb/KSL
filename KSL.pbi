@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260324
+#KSL_Version = 20260326
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -148,15 +148,30 @@ CompilerIf (Not Defined(PB_Compiler_64Bit, #PB_Constant))
   CompilerEndIf
 CompilerEndIf
 
-CompilerIf (PBGTE(540))
-  #GTK2 = Subsystem("gtk2")
-  #GTK3 = Bool(Not #GTK2)
-CompilerElseIf (PBGTE(520))
-  #GTK3 = Subsystem("gtk3")
-  #GTK2 = Bool(Not #GTK3)
+CompilerIf (#Linux)
+  CompilerIf (PBGTE(540))
+    #GTK2 = Subsystem("gtk2")
+    #GTK3 = Bool(Not #GTK2)
+  CompilerElseIf (PBGTE(520))
+    #GTK3 = Subsystem("gtk3")
+    #GTK2 = Bool(Not #GTK3)
+  CompilerElse
+    #GTK2 = #True
+    #GTK3 = #False
+  CompilerEndIf
+  CompilerIf (PBGTE(570))
+    #QT = Subsystem("qt")
+  CompilerElse
+    #QT = #False
+  CompilerEndIf
 CompilerElse
-  #GTK2 = #True
+  #GTK2 = #False
   #GTK3 = #False
+  #QT   = #False
+CompilerEndIf
+
+CompilerIf (Not Defined(PB_Compiler_Wayland, #PB_Constant))
+  #PB_Compiler_Wayland = #False
 CompilerEndIf
 
 #PB_Compiler_Examples3DData      = #PB_Compiler_Home + WindowsElse("Examples\3D\Data\", "examples/3d/Data/")
