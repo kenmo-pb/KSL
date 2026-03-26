@@ -2722,6 +2722,15 @@ Macro GetPanelHeight(_PanelGadget)
   (GetGadgetAttribute(((_PanelGadget), #PB_Panel_ItemHeight)))
 EndMacro
 
+Procedure GetGadgetRequiredSize(Gadget.i, *Width.INTEGER, *Height.INTEGER)
+  If (*Width)
+    *Width\i = GadgetRequiredWidth(Gadget)
+  EndIf
+  If (*Height)
+    *Height\i = GadgetRequiredHeight(Gadget)
+  EndIf
+EndProcedure
+
 Procedure SelectGadget(Gadget.i)
   CompilerIf (#Windows)
     SendMessage_(GadgetID(Gadget), #EM_SETSEL, 0, -1)
@@ -2984,6 +2993,28 @@ Procedure EnsureSameDesktop(ChildWindow.i, ParentWindow.i)
   If (Not SameDesktop(ChildWindow, ParentWindow))
     CenterWindowInWindow(ChildWindow, ParentWindow)
   EndIf
+EndProcedure
+
+Procedure.i RegisterCustomEvent(MinimumEventValue.i = #PB_Ignore)
+  Static EventValue.i = (#PB_Event_FirstCustomValue - 1)
+  EventValue + 1
+  If (MinimumEventValue > #PB_Event_FirstCustomValue)
+    If (EventValue < MinimumEventValue)
+      EventValue = MinimumEventValue
+    EndIf
+  EndIf
+  ProcedureReturn (EventValue)
+EndProcedure
+
+Procedure.i RegisterCustomEventType(MinimumEventTypeValue.i = #PB_Ignore)
+  Static EventTypeValue.i = (#PB_EventType_FirstCustomValue - 1)
+  EventTypeValue + 1
+  If (MinimumEventTypeValue > #PB_EventType_FirstCustomValue)
+    If (EventTypeValue < MinimumEventTypeValue)
+      EventTypeValue = MinimumEventTypeValue
+    EndIf
+  EndIf
+  ProcedureReturn (EventTypeValue)
 EndProcedure
 
 ;-
