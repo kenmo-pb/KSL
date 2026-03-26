@@ -371,6 +371,41 @@ CompilerEndIf
 
 ;-
 
+;- ----- Common Structures -----
+
+Structure AsciiArray
+  a.a[0]
+EndStructure
+Structure ByteArray
+  b.b[0]
+EndStructure
+Structure CharacterArray
+  c.c[0]
+EndStructure
+Structure DoubleArray
+  d.d[0]
+EndStructure
+Structure FloatArray
+  f.f[0]
+EndStructure
+Structure IntegerArray
+  i.i[0]
+EndStructure
+Structure LongArray
+  l.l[0]
+EndStructure
+Structure QuadArray
+  q.q[0]
+EndStructure
+Structure UnicodeArray
+  u.u[0]
+EndStructure
+Structure WordArray
+  w.w[0]
+EndStructure
+
+;-
+
 ;- ----- Dialog Functions -----
 
 CompilerIf (#RequestersSupportParentID)
@@ -513,6 +548,28 @@ Procedure.i RandomBool(PercentTrue.i)
   ProcedureReturn (#False)
 EndProcedure
 
+Procedure.u SwapEndian16(Value16Bit.u)
+  Protected *BA.ByteArray = @Value16Bit
+  Swap *BA\b[0], *BA\b[1]
+  ProcedureReturn (Value16Bit)
+EndProcedure
+
+Procedure.l SwapEndian32(Value32Bit.l)
+  Protected *BA.ByteArray = @Value32Bit
+  Swap *BA\b[0], *BA\b[3]
+  Swap *BA\b[1], *BA\b[2]
+  ProcedureReturn (Value32Bit)
+EndProcedure
+
+Procedure.q SwapEndian64(Value64Bit.q)
+  Protected *BA.ByteArray = @Value64Bit
+  Swap *BA\b[0], *BA\b[7]
+  Swap *BA\b[1], *BA\b[6]
+  Swap *BA\b[2], *BA\b[5]
+  Swap *BA\b[3], *BA\b[4]
+  ProcedureReturn (Value64Bit)
+EndProcedure
+
 ;-
 
 ;- ----- Time Functions -----
@@ -636,8 +693,24 @@ Macro StrBool(_Expr)
   _KSL_StrBool(Bool(_Expr))
 EndMacro
 
-Macro HexLong(_Number)
-  (Hex((_Number), #PB_Long))
+Macro HexLong(_ValueLong)
+  (Hex((_ValueLong), #PB_Long))
+EndMacro
+
+Macro Hex8(_Value8Bit)
+  RSet(UCase(Hex((_Value8Bit), #PB_Ascii)), 2, "0")
+EndMacro
+Macro Hex16(_Value16Bit)
+  RSet(UCase(Hex((_Value16Bit), #PB_Unicode)), 4, "0")
+EndMacro
+Macro Hex24(_Value24Bit)
+  RSet(UCase(Hex((_Value24Bit) & $00FFFFFF, #PB_Long)), 6, "0")
+EndMacro
+Macro Hex32(_Value32Bit)
+  RSet(UCase(Hex((_Value32Bit), #PB_Long)), 8, "0")
+EndMacro
+Macro Hex64(_Value64Bit)
+  RSet(UCase(Hex((_Value64Bit), #PB_Quad)), 16, "0")
 EndMacro
 
 Macro BytesToChars(_Bytes)
