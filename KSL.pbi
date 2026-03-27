@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260326
+#KSL_Version = 20260327
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -20,11 +20,11 @@ CompilerEndIf
 
 ;- ----- Compile Switches -----
 
-CompilerIf (Not Defined(KSL_ExcludeNetworkFunctions, #PB_Constant))
-  CompilerIf (Defined(KSL_IncludeNetworkFunctions, #PB_Constant))
-    #KSL_ExcludeNetworkFunctions = Bool(Not #KSL_IncludeNetworkFunctions)
+CompilerIf (Not Defined(KSL_IncludeNetworkFunctions, #PB_Constant))
+  CompilerIf (Defined(KSL_ExcludeNetworkFunctions, #PB_Constant))
+    #KSL_IncludeNetworkFunctions = Bool(Not #KSL_ExcludeNetworkFunctions)
   CompilerElse
-    #KSL_ExcludeNetworkFunctions = #True
+    #KSL_IncludeNetworkFunctions = #False
   CompilerEndIf
 CompilerEndIf
 
@@ -510,6 +510,12 @@ Macro IIfS(_Expression, _StringIfTrue, _StringIfFalse)
   _IIfS(Bool(_Expression), (_StringIfTrue), (_StringIfFalse))
 EndMacro
 
+Macro ReplaceIfPBDefault(_Variable, _NewValueIfPBDefault)
+  If (_Variable = #PB_Default)
+    _Variable = (_NewValueIfPBDefault)
+  EndIf
+EndMacro
+
 Procedure.i MaxI(a.i, b.i)
   If (a > b)
     ProcedureReturn (a)
@@ -694,8 +700,8 @@ Enumeration ; Flags for the Interate procedures
 EndEnumeration
 
 Global Dim _KSL_StrBool.s((2)-1)
-_KSL_StrBool(0) = "false"
-_KSL_StrBool(1) = "true"
+_KSL_StrBool(0) = "False"
+_KSL_StrBool(1) = "True"
 
 Macro StrBool(_Expr)
   _KSL_StrBool(Bool(_Expr))
@@ -987,41 +993,55 @@ Procedure.s Between(String.s, Prefix.s, Suffix.s)
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure.s LTrimWhitespace(String.s)
+Procedure.i IsWhitespaceCharacter(Codepoint.i)
+  Select (Codepoint)
+    Case #SP, #TAB, #CR, #LF
+      ProcedureReturn (#True)
+    Case #NUL
+      ProcedureReturn (#True)
+  EndSelect
+  ProcedureReturn (#False)
+EndProcedure
+
+Procedure.i IsWhitespaceString(String.s)
+  Protected Result.i = #True
   Protected *C.CHARACTER = @String
-  While (#True)
-    Select (*C\c)
-      Case #SP, #TAB, #CR, #LF
-        ; ...
-      Default ; including #NUL
-        ProcedureReturn (PeekS(*C))
-    EndSelect
+  While (*C\c)
+    If (Not IsWhitespaceCharacter(*C\c))
+      Result = #False
+      Break
+    EndIf
     *C + SizeOf(CHARACTER)
   Wend
-  ProcedureReturn (String)
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s LTrimWhitespace(String.s)
+  Protected *C.CHARACTER = @String
+  While (*C\c)
+    If (Not IsWhitespaceCharacter(*C\c))
+      ProcedureReturn (PeekS(*C))
+    EndIf
+    *C + SizeOf(CHARACTER)
+  Wend
+  ProcedureReturn ("")
 EndProcedure
 
 Procedure.s TrimWhitespace(String.s)
   Protected *Start.CHARACTER = @String
   While (#True)
-    Select (*Start\c)
-      Case #SP, #TAB, #CR, #LF
-        ; ...
-      Default ; including #NUL
-        Break
-    EndSelect
+    If ((*Start\c = #NUL) Or (Not IsWhitespaceCharacter(*Start\c)))
+      Break
+    EndIf
     *Start + SizeOf(CHARACTER)
   Wend
   If (*Start\c <> #NUL)
     Protected *Stop.CHARACTER = *Start
     Protected *C.CHARACTER = *Start
     While (*C\c)
-      Select (*C\c)
-        Case #SP, #TAB, #CR, #LF
-          ; ...
-        Default
-          *Stop = *C
-      EndSelect
+      If (Not IsWhitespaceCharacter(*C\c))
+        *Stop = *C
+      EndIf
       *C + SizeOf(CHARACTER)
     Wend
     ProcedureReturn (PeekS(*Start, BytesToChars(*Stop - *Start) + 1))
@@ -1168,9 +1188,9 @@ Procedure.i SplitStringToList(String.s, List StrList.s(), Delimiter.s, ExcludeEm
   ProcedureReturn (Result)
 EndProcedure
 
-Prototype _KSL_IterateStringCallback(String.s, UserData.i)
+Prototype KSL_IterateStringCallback(String.s, UserData.i)
 
-Procedure.i IterateStringList(List StrList.s(), *CallbackWithUserData, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
+Procedure.i IterateStringList(List StrList.s(), Callback.KSL_IterateStringCallback, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
   Protected Result.i = 0
   
   If (Flags = #PB_Default)
@@ -1179,14 +1199,13 @@ Procedure.i IterateStringList(List StrList.s(), *CallbackWithUserData, UserData.
   If (Flags & #KSL_ExcludeWhitespace)
     Flags | #KSL_ExcludeBlank
   EndIf
-  Protected Callback._KSL_IterateStringCallback = *CallbackWithUserData
   
   PushListPosition(StrList())
   ForEach (StrList())
     If ((Not (Flags & #KSL_ExcludeBlank)) Or (StrList() <> ""))
       If ((Not (Flags & #KSL_ExcludeWhitespace)) Or (TrimWhitespace(StrList()) <> ""))
         If ((ExcludePrefix = "") Or (Left(LTrimWhitespace(StrList()), Len(ExcludePrefix)) <> ExcludePrefix))
-          If (*CallbackWithUserData)
+          If (Callback)
             Callback(StrList(), UserData)
           EndIf
           Result + 1
@@ -1199,7 +1218,7 @@ Procedure.i IterateStringList(List StrList.s(), *CallbackWithUserData, UserData.
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure.i IterateStringFields(String.s, Separator.s, *CallbackWithUserData, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
+Procedure.i IterateStringFields(String.s, Separator.s, Callback.KSL_IterateStringCallback, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
   Protected Result.i = 0
   
   If (Flags = #PB_Default)
@@ -1208,7 +1227,6 @@ Procedure.i IterateStringFields(String.s, Separator.s, *CallbackWithUserData, Us
   If (Flags & #KSL_ExcludeWhitespace)
     Flags | #KSL_ExcludeBlank
   EndIf
-  Protected Callback._KSL_IterateStringCallback = *CallbackWithUserData
   
   If (String And Separator)
     Protected N.i = 1 + CountString(String, Separator)
@@ -1218,7 +1236,7 @@ Procedure.i IterateStringFields(String.s, Separator.s, *CallbackWithUserData, Us
       If ((Not (Flags & #KSL_ExcludeBlank)) Or (Field <> ""))
         If ((Not (Flags & #KSL_ExcludeWhitespace)) Or (TrimWhitespace(Field) <> ""))
           If ((ExcludePrefix = "") Or (Left(LTrimWhitespace(Field), Len(ExcludePrefix)) <> ExcludePrefix))
-            If (*CallbackWithUserData)
+            If (Callback)
               Callback(Field, UserData)
             EndIf
             Result + 1
@@ -1231,7 +1249,7 @@ Procedure.i IterateStringFields(String.s, Separator.s, *CallbackWithUserData, Us
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure.i IterateStringsFromFile(File.i, *CallbackWithUserData, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
+Procedure.i IterateStringsFromFile(File.i, Callback.KSL_IterateStringCallback, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
   Protected Result.i = 0
   
   If (Flags = #PB_Default)
@@ -1240,7 +1258,6 @@ Procedure.i IterateStringsFromFile(File.i, *CallbackWithUserData, UserData.i = #
   If (Flags & #KSL_ExcludeWhitespace)
     Flags = Flags | #KSL_ExcludeBlank
   EndIf
-  Protected Callback._KSL_IterateStringCallback = *CallbackWithUserData
   
   Protected SpecificFormat.i
   If (Loc(File) = 0)
@@ -1264,7 +1281,7 @@ Procedure.i IterateStringsFromFile(File.i, *CallbackWithUserData, UserData.i = #
     If ((Not (Flags & #KSL_ExcludeBlank)) Or (Line <> ""))
       If ((Not (Flags & #KSL_ExcludeWhitespace)) Or (TrimWhitespace(Line) <> ""))
         If ((ExcludePrefix = "") Or (Left(LTrimWhitespace(Line), Len(ExcludePrefix)) <> ExcludePrefix))
-          If (*CallbackWithUserData)
+          If (Callback)
             Callback(Line, UserData)
           EndIf
           Result + 1
@@ -1276,13 +1293,13 @@ Procedure.i IterateStringsFromFile(File.i, *CallbackWithUserData, UserData.i = #
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure.i IterateStringsFromFilePath(FilePath.s, *CallbackWithUserData, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
+Procedure.i IterateStringsFromFilePath(FilePath.s, Callback.KSL_IterateStringCallback, UserData.i = #Null, Flags.i = #PB_Default, ExcludePrefix.s = "")
   Protected Result.i = 0
   
   If (FilePath)
     Protected FN.i = ReadFile(#PB_Any, FilePath)
     If (FN)
-      Result = IterateStringsFromFile(FN, *CallbackWithUserData, UserData, Flags, ExcludePrefix)
+      Result = IterateStringsFromFile(FN, Callback, UserData, Flags, ExcludePrefix)
       CloseFile(FN)
     EndIf
   EndIf
@@ -1315,6 +1332,7 @@ Procedure.i RequiredUTF8Bytes(Codepoint.i)
     ProcedureReturn (0)
   EndIf
 EndProcedure
+
 Procedure.i IsUTF8ContinuationByte(Byte.i)
   ProcedureReturn (Bool((Byte & %11000000) = %10000000))
 EndProcedure
@@ -1404,7 +1422,36 @@ Procedure.i PeekCodepoint(*Pointer, Format.i = #InternalStringFormat, *PointerTo
 EndProcedure
 
 Procedure.i AscU(String.s)
-  ProcedureReturn (PeekCodepoint(@String))
+  ProcedureReturn (PeekCodepoint(@String, #InternalStringFormat))
+EndProcedure
+
+Procedure.i EncodeCodepointToUTF8Bytes(Codepoint.i, *ResultBytes.LONG)
+  Protected RequiredBytes.i = 0
+  ; Returns 1-4 (number of encoded bytes), or 0 for failure
+  ; *ResultBytes must point to at least 4 available bytes (4 will be pre-cleared to 0!)
+  If (*ResultBytes)
+    RequiredBytes = RequiredUTF8Bytes(Codepoint)
+    If (RequiredBytes > 0)
+      *ResultBytes\l = 0
+      Select (RequiredBytes)
+        Case 4
+          PokeA(*ResultBytes + 0, %11110000 | ((Codepoint >> 18) & %00000111))
+          PokeA(*ResultBytes + 1, %10000000 | ((Codepoint >> 12) & %00111111))
+          PokeA(*ResultBytes + 2, %10000000 | ((Codepoint >>  6) & %00111111))
+          PokeA(*ResultBytes + 3, %10000000 | ((Codepoint >>  0) & %00111111))
+        Case 3
+          PokeA(*ResultBytes + 0, %11100000 | ((Codepoint >> 12) & %00001111))
+          PokeA(*ResultBytes + 1, %10000000 | ((Codepoint >>  6) & %00111111))
+          PokeA(*ResultBytes + 2, %10000000 | ((Codepoint >>  0) & %00111111))
+        Case 2
+          PokeA(*ResultBytes + 0, %11000000 | ((Codepoint >>  6) & %00011111))
+          PokeA(*ResultBytes + 1, %10000000 | ((Codepoint >>  0) & %00111111))
+        Case 1
+          PokeA(*ResultBytes + 0, %00000000 | ((Codepoint >>  0) & %01111111))
+      EndSelect
+    EndIf
+  EndIf
+  ProcedureReturn (RequiredBytes)
 EndProcedure
 
 Procedure.s URLParamEncoder(Text.s)
@@ -1418,28 +1465,17 @@ Procedure.s URLParamEncoder(Text.s)
         If (*C\c = $20) ; space
           ;Result + "%20"
           Result + "+"
-        ElseIf (*C\c < $80) ; single-byte char
-          Result + "%" + RSet(UCase(Hex(*C\c)), 2, "0")
+        ElseIf (*C\c <= $7F) ; single-byte char
+          Result + "%" + Hex8(*C\c)
         Else ; multi-byte char
-          ; Could possibly utilize NumBytes = PokeS(@Long, #PB_UTF8|#PB_String_NoZero) here, but would still need to detect and handle UTF-16 surrogate pairs!
           Protected Codepoint.i = PeekCodepoint(*C, #InternalStringFormat, @*C)
-          If (Codepoint >= 0)
-            Select (RequiredUTF8Bytes(Codepoint))
-              Case 4
-                Result + "%" + RSet(UCase(Hex( %11110000 | ((Codepoint >> 18) & %111)    )), 2, "0")
-                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >> 12) & %111111) )), 2, "0")
-                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  6) & %111111) )), 2, "0")
-                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  0) & %111111) )), 2, "0")
-              Case 3
-                Result + "%" + RSet(UCase(Hex( %11100000 | ((Codepoint >> 12) & %1111)   )), 2, "0")
-                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  6) & %111111) )), 2, "0")
-                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >>  0) & %111111) )), 2, "0")
-              Case 2
-                Result + "%" + RSet(UCase(Hex( %11000000 | ((Codepoint >> 6) & %11111)  )), 2, "0")
-                Result + "%" + RSet(UCase(Hex( %10000000 | ((Codepoint >> 0) & %111111) )), 2, "0")
-            EndSelect
-            *C - SizeOf(CHARACTER)
-          EndIf
+          Protected UTF8Bytes.l
+          Protected NumUTF8Bytes.i = EncodeCodepointToUTF8Bytes(Codepoint, @UTF8Bytes)
+          Protected i.i
+          For i = 1 To NumUTF8Bytes
+            Result + "%" + Hex8(PeekA(@UTF8Bytes + (i-1)))
+          Next i
+          *C - SizeOf(CHARACTER) ; (because it's about to be extra-incremented below)
         EndIf
     EndSelect
     *C + SizeOf(CHARACTER)
@@ -1459,6 +1495,9 @@ EndProcedure
 #OpaqueMagenta = $FFFF00FF
 #OpaqueCyan    = $FFFFFF00
 #OpaqueWhite   = $FFFFFFFF
+
+#SepiaLight = $D8ECF4
+#SepiaDark  = $36465B
 
 Enumeration ; ColorFormats for the Compose procedures
   #KSL_ColorFormat_Integer = 0
@@ -1501,9 +1540,9 @@ Procedure.s ComposeRGB(RGBColor.i, ColorFormat.i = #KSL_ColorFormat_HexCSS)
   RGBColor = RGBColor & $00FFFFFF
   Select (ColorFormat)
     Case #KSL_ColorFormat_HexPB
-      Result = "$" + RSet(Hex(RGBColor, #PB_Long), 6, "0")
+      Result = "$" + Hex24(RGBColor)
     Case #KSL_ColorFormat_HexCSS
-      Result = "#" + RSet(Hex(SwapRGB(RGBColor), #PB_Long), 6, "0")
+      Result = "#" + Hex24(SwapRGB(RGBColor))
     Case #KSL_ColorFormat_RGBComponents
       Result = "RGB(" + Str(Red(RGBColor)) + ", " + Str(Green(RGBColor)) + ", " + Str(Blue(RGBColor)) + ")"
     Default ;Case #KSL_ColorFormat_Integer
@@ -1519,12 +1558,12 @@ Procedure.s ComposeRGBA(RGBAColor.i, ColorFormat.i = #KSL_ColorFormat_HexCSS)
   RGBAColor = RGBAColor & $FFFFFFFF
   Select (ColorFormat)
     Case #KSL_ColorFormat_HexPB
-      Result = "$" + RSet(Hex(RGBAColor, #PB_Long), 8, "0")
+      Result = "$" + Hex32(RGBAColor)
     Case #KSL_ColorFormat_HexCSS
       If (#True) ; move AA to the end, after #RRGGBB
-        Result = "#" + RSet(Hex(SwapRGB(RGBAColor) & $00FFFFFF), 6, "0") + RSet(Hex(Alpha(RGBAColor)), 2, "0")
+        Result = "#" + Hex24(SwapRGB(RGBAColor) & $00FFFFFF) + Hex8(Alpha(RGBAColor))
       Else
-        Result = "#" + RSet(Hex(SwapRGB(RGBAColor), #PB_Long), 8, "0")
+        Result = "#" + Hex32(SwapRGB(RGBAColor))
       EndIf
     Case #KSL_ColorFormat_RGBComponents
       Result = "RGBA(" + Str(Red(RGBAColor)) + ", " + Str(Green(RGBAColor)) + ", " + Str(Blue(RGBAColor)) + ", " + Str(Alpha(RGBAColor)) + ")"
@@ -2730,6 +2769,10 @@ Macro GetPanelHeight(_PanelGadget)
   (GetGadgetAttribute(((_PanelGadget), #PB_Panel_ItemHeight)))
 EndMacro
 
+Macro FinishOptionGadgetGroup()
+  FreeGadget(TextGadget(#PB_Any, 0, 0, 20, 20, ""))
+EndMacro
+
 Procedure GetGadgetRequiredSize(Gadget.i, *Width.INTEGER, *Height.INTEGER)
   If (*Width)
     *Width\i = GadgetRequiredWidth(Gadget)
@@ -2827,7 +2870,7 @@ Procedure.i StandardGadgetHeight(Type.i, Flags.i = #PB_Default)
           If (Dummy)
             OptionHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
             FreeGadget(Dummy)
-            FreeGadget(TextGadget(#PB_Any, 0, 0, 20, 20, " "))
+            FinishOptionGadgetGroup()
           EndIf
         EndIf
         Result = OptionHeight
@@ -3107,6 +3150,9 @@ Procedure.s DesktopIDString(i.i)
     If (#True)
       Result + "@" + Str(DesktopFrequency(i))
     EndIf
+    If (#False)
+      Result + "-" + DesktopName(i)
+    EndIf
   EndIf
   ProcedureReturn (Result)
 EndProcedure
@@ -3124,12 +3170,12 @@ EndProcedure
 Procedure.i WindowCenterY(Window.i, PercentDown.f = 0.50)
   ProcedureReturn (WindowY(Window) + WindowHeight(Window) * PercentDown)
 EndProcedure
-Procedure GetWindowCenterXY(Window.i, *CX.INTEGER, *CY.INTEGER, YPercentDown.f = 0.50)
-  If (*CX)
-    *CX\i = WindowCenterX(Window)
+Procedure GetWindowCenterXY(Window.i, *CenterX.INTEGER, *CenterY.INTEGER, YPercentDown.f = 0.50)
+  If (*CenterX)
+    *CenterX\i = WindowCenterX(Window)
   EndIf
-  If (*CY)
-    *CY\i = WindowCenterY(Window, YPercentDown)
+  If (*CenterY)
+    *CenterY\i = WindowCenterY(Window, YPercentDown)
   EndIf
 EndProcedure
 
@@ -3229,9 +3275,9 @@ Procedure.i ListRequesterWindowID()
   ProcedureReturn (#Null)
 EndProcedure
 
-Prototype.i ListRequesterCallback(Selection.s) ; return 0 to accept, non-zero to reject
+Prototype.i KSL_ListRequesterCallback(Selection.s) ; return 0 to accept, non-zero to reject
 
-Procedure.s ListRequester(Title.s, Message.s, List String.s(), ParentWindow.i = #PB_Ignore, MultiSelect.i = #False, Callback.ListRequesterCallback = #Null)
+Procedure.s ListRequester(Title.s, Message.s, List String.s(), ParentWindow.i = #PB_Ignore, MultiSelect.i = #False, Callback.KSL_ListRequesterCallback = #Null)
   Protected Result.s = ""
   
   Protected ParentID.i = #Null
@@ -3433,7 +3479,7 @@ Procedure LaunchURL(URL.s)
   EndIf
 EndProcedure
 
-CompilerIf (Not #KSL_ExcludeNetworkFunctions)
+CompilerIf (#KSL_IncludeNetworkFunctions)
 
 Procedure.s ReceiveHTTPString(URL.s, Flags.i = #Null)
   Protected Result.s = ""
@@ -3644,9 +3690,11 @@ CompilerIf (#True)
   EndIf
 CompilerEndIf
 
-#KSL_DisplayServer_Unknown = 0
-#KSL_DisplayServer_X11     = 1
-#KSL_DisplayServer_Wayland = 2
+Enumeration
+  #KSL_DisplayServer_Unknown = 0
+  #KSL_DisplayServer_X11     = 1
+  #KSL_DisplayServer_Wayland = 2
+EndEnumeration
 
 Procedure.i GetDisplayServer()
   Protected Result.i = #KSL_DisplayServer_Unknown
