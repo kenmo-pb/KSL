@@ -927,6 +927,21 @@ CompilerElse
   EndMacro
 CompilerEndIf
 
+Procedure.s RepeatString(String.s, N.i)
+  Protected Result.s = ""
+  If (N >= 1)
+    Protected Bytes.i = StringByteLength(String)
+    If (Bytes >= 1)
+      Result = Space(N * Bytes / SizeOf(CHARACTER))
+      Protected i.i
+      For i = 0 To (N-1)
+        CopyMemory(@String, @Result + i * Bytes, Bytes)
+      Next i
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
 Procedure.i NullTerminatorSize(Format.i = #InternalStringFormat)
   Select (Format)
     Case #PB_Ascii, #PB_UTF8
@@ -1001,6 +1016,31 @@ Procedure.s ChrU(Value.i)
   CompilerElse
     ProcedureReturn (Chr(Value))
   CompilerEndIf
+EndProcedure
+
+Procedure.s UQuote(String.s, Double.i, Heavy.i = #False)
+  CompilerIf (#Unicode)
+    If (Heavy)
+      If (Double)
+        String = ChrU($275D) + String + ChrU($275E)
+      Else
+        String = ChrU($275B) + String + ChrU($275C)
+      EndIf
+    Else
+      If (Double)
+        String = ChrU($201C) + String + ChrU($201D)
+      Else
+        String = ChrU($2018) + String + ChrU($2019)
+      EndIf
+    EndIf
+  CompilerElse
+    If (Double)
+      String = Quote(String)
+    Else
+      String = SQuote(String)
+    EndIf
+  CompilerEndIf
+  ProcedureReturn (String)
 EndProcedure
 
 Procedure.s Plural(N.i, Singular.s, Multiple.s = "")
