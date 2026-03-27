@@ -588,6 +588,31 @@ EndProcedure
 
 ;- ----- Time Functions -----
 
+Enumeration
+  #January = 1
+  #February
+  #March
+  #April
+  #May
+  #June
+  #July
+  #August
+  #September
+  #October
+  #November
+  #December
+EndEnumeration
+
+Enumeration
+  #Sunday = 0
+  #Monday
+  #Tuesday
+  #Wednesday
+  #Thursday
+  #Friday
+  #Saturday
+EndEnumeration
+
 Macro SecondsToMinutes(_Seconds)
   ((_Seconds) / 60.0)
 EndMacro
@@ -608,6 +633,10 @@ Macro NowUTC()
   DateUTC()
 EndMacro
 
+Macro CurrentYear()
+  Year(Date())
+EndMacro
+
 Macro DateString(_Timestamp = Now())
   FormatDate("%yyyy-%mm-%dd", _Timestamp)
 EndMacro
@@ -617,6 +646,48 @@ EndMacro
 Macro TimestampString(_Timestamp = Now())
   FormatDate("%yyyy-%mm-%dd %hh:%ii:%ss", _Timestamp)
 EndMacro
+
+Procedure.i IsLeapYear(Year.i)
+  ProcedureReturn (Bool(AddDate(Date(Year, #February, 28, 0, 0, 0), #PB_Date_Day, 1) = Date(Year, #February, 29, 0, 0, 0)))
+EndProcedure
+
+Procedure.i DaysInMonth(Month.i, Year.i = #PB_Default)
+  If (Year = #PB_Default)
+    Year = CurrentYear()
+  EndIf
+  ReplaceIfPBDefault(Year, CurrentYear())
+  Select (Month)
+    Case #January, #March, #May, #July, #August, #October, #December
+      ProcedureReturn (31)
+    Case #April, #June, #September, #November
+      ProcedureReturn (30)
+    Case #February
+      If (IsLeapYear(Year))
+        ProcedureReturn (29)
+      Else
+        ProcedureReturn (28)
+      EndIf
+  EndSelect
+  ProcedureReturn (0)
+EndProcedure
+
+Procedure.i DaysInYear(Year.i = #PB_Default)
+  If (Year = #PB_Default)
+    Year = CurrentYear()
+  EndIf
+  ProcedureReturn (365 + IsLeapYear(Year))
+EndProcedure
+
+Procedure.i FirstDayOfWeekOfMonth(Month.i, Year.i = #PB_Default)
+  If (Year = #PB_Default)
+    Year = CurrentYear()
+  EndIf
+  ProcedureReturn (DayOfWeek(Date(Year, Month, 1, 0, 0, 0)))
+EndProcedure
+
+Procedure.i FirstDayOfWeekOfYear(Year.i = #PB_Default)
+  ProcedureReturn (FirstDayOfWeekOfMonth(#January, Year))
+EndProcedure
 
 ;-
 
