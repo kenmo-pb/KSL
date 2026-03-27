@@ -3674,7 +3674,27 @@ CompilerEndIf ; Windows
 ;- - Linux
 CompilerIf (#Linux)
 
-#GDK_LEFTTAB = $FE20
+Enumeration
+  ; https://gitlab.gnome.org/GNOME/gtk/-/blob/main/gdk/gdkkeysyms.h
+  #GDK_KEY_ISO_Left_Tab = $fe20
+  #GDK_LEFTTAB          = #GDK_KEY_ISO_Left_Tab
+  ;
+  #GDK_KEY_BackSpace = $ff08
+  #GDK_KEY_Tab       = $ff09
+  #GDK_KEY_Linefeed  = $ff0a
+  #GDK_KEY_Clear     = $ff0b
+  #GDK_KEY_Return    = $ff0d
+  #GDK_KEY_Escape    = $ff1b
+  #GDK_KEY_Delete    = $ffff
+  #GDK_KEY_Left      = $ff51
+  #GDK_KEY_Up        = $ff52
+  #GDK_KEY_Right     = $ff53
+  #GDK_KEY_Down      = $ff54
+  #GDK_KEY_Undo      = $ff65
+  #GDK_KEY_Redo      = $ff66
+  #GDK_KEY_Cancel    = $ff69
+  #GDK_KEY_KP_Enter  = $ff8d
+EndEnumeration
 
 CompilerIf (#True)
   ;
