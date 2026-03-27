@@ -761,6 +761,32 @@ Macro ClearAndFreeMap(_Map)
   FreeMap(_Map)
 EndMacro
 
+CompilerIf (#True)
+
+Procedure.i PreviousElementPtr(*ListElementPtr)
+  Protected *Result = #Null
+  If (*ListElementPtr)
+    *Result = PeekI(*ListElementPtr - SizeOf(INTEGER))
+    If (*Result)
+      *Result + 2 * SizeOf(INTEGER)
+    EndIf
+  EndIf
+  ProcedureReturn (*Result)
+EndProcedure
+
+Procedure.i NextElementPtr(*ListElementPtr)
+  Protected *Result = #Null
+  If (*ListElementPtr)
+    *Result = PeekI(*ListElementPtr - 2 * SizeOf(INTEGER))
+    If (*Result)
+      *Result + 2 * SizeOf(INTEGER)
+    EndIf
+  EndIf
+  ProcedureReturn (*Result)
+EndProcedure
+
+CompilerEndIf
+
 ;-
 
 ;- ----- String Functions -----
