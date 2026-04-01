@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260327
+#KSL_Version = 20260331
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -2946,6 +2946,10 @@ Procedure.i StandardGadgetHeight(Type.i, Flags.i = #PB_Default)
     If (Flags = #PB_Default)
       Flags = #Null
     EndIf
+    Protected DummyWindow.i = #Null
+    If (UseGadgetList(0) = #Null)
+      DummyWindow = OpenWindow(#PB_Any, 0, 0, 100, 100, "", #PB_Window_Invisible)
+    EndIf
     Select (Type)
       Case #PB_GadgetType_Unknown
         Result = 0
@@ -3076,6 +3080,9 @@ Procedure.i StandardGadgetHeight(Type.i, Flags.i = #PB_Default)
         Result = StandardGadgetHeight(#PB_GadgetType_Button)
       
     EndSelect
+    If (DummyWindow)
+      CloseWindow(DummyWindow)
+    EndIf
     
     If (Result <= 0)
       Result = 20
@@ -3112,6 +3119,33 @@ EndMacro
 Macro StandardTextGadgetHeight(_Flags = #PB_Default)
   StandardGadgetHeight(#PB_GadgetType_Text, (_Flags))
 EndMacro
+
+Procedure.i EstimateGadgetRequiredWidth(Gadget.i)
+  Protected Result.i = 0
+  EventType()
+  Protected i.i, N.i
+  Protected DummyGadget.i = #Null
+  Select (GadgetType(Gadget))
+    Case #PB_GadgetType_String, #PB_GadgetType_Frame
+      DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, GetGadgetText(Gadget), #PB_Text_Border)
+      Result = GadgetRequiredWidth(DummyGadget) + GadgetRequiredHeight(DummyGadget)
+    Case #PB_GadgetType_ComboBox
+      Result = 2 * StandardComboBoxHeight()
+      DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, "", #PB_Text_Border)
+      N = CountGadgetItems(Gadget)
+      For i = 0 To N - 1
+        SetGadgetText(DummyGadget, GetGadgetItemText(Gadget, i))
+        Result = MaxI(Result, GadgetRequiredWidth(DummyGadget) + 1.5 * StandardComboBoxHeight())
+      Next i
+    Default
+      Result = GadgetRequiredWidth(Gadget)
+  EndSelect
+  If (DummyGadget)
+    FreeGadget(DummyGadget)
+  EndIf
+  
+  ProcedureReturn (Result)
+EndProcedure
 
 CompilerEndIf
 
@@ -3545,6 +3579,46 @@ CompilerEndIf
 
 ;-
 
+;- ----- Console Functions -----
+
+Procedure PrintNBordered(Text.s, UnderlineChar.s = "", OverlineChar.s = "", SideChars.s = "", CornerChar.s = "")
+  Protected N.i = Len(Text)
+  Protected SideLen.i = Len(SideChars)
+  If (SideLen > 0)
+    Text = SideChars + Text + ReverseString(SideChars)
+  EndIf
+  Protected Line.s
+  If (OverlineChar)
+    If (SideLen > 0)
+      If (CornerChar <> "")
+        Line = CornerChar + RepeatString(OverlineChar, N + 2*(SideLen-1)) + CornerChar
+      Else
+        Line = RepeatString(OverlineChar, N + 2*(SideLen))
+      EndIf
+    Else
+      Line = RepeatString(OverlineChar, N)
+    EndIf
+    PrintN(Line)
+  EndIf
+  ;
+  PrintN(Text)
+  ;
+  If (UnderlineChar)
+    If (SideLen > 0)
+      If (CornerChar <> "")
+        Line = CornerChar + RepeatString(UnderlineChar, N + 2*(SideLen-1)) + CornerChar
+      Else
+        Line = RepeatString(UnderlineChar, N + 2*(SideLen))
+      EndIf
+    Else
+      Line = RepeatString(UnderlineChar, N)
+    EndIf
+    PrintN(Line)
+  EndIf
+EndProcedure
+
+;-
+
 ;- ----- Preference Functions -----
 
 Procedure WritePreferenceBool(Key.s, Value.i)
@@ -3813,8 +3887,7 @@ CompilerIf (#Linux)
 
 Enumeration
   ; https://gitlab.gnome.org/GNOME/gtk/-/blob/main/gdk/gdkkeysyms.h
-  #GDK_KEY_ISO_Left_Tab = $fe20
-  #GDK_LEFTTAB          = #GDK_KEY_ISO_Left_Tab
+  #GDK_KEY_ISO_Left_Tab = $fe20 ; aka LEFTTAB
   ;
   #GDK_KEY_BackSpace = $ff08
   #GDK_KEY_Tab       = $ff09
