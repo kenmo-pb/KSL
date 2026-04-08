@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260407
+#KSL_Version = 20260408
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -20,16 +20,37 @@ CompilerEndIf
 
 ;- ----- Compile Switches -----
 
+CompilerIf (Not Defined(KSL_IncludeListRequester, #PB_Constant))
+  #KSL_IncludeListRequester = #False
+CompilerEndIf
+CompilerIf (#KSL_IncludeListRequester)
+  CompilerIf (Defined(KSL_IncludeGadgetSizeFunctions, #PB_Constant))
+    CompilerIf (Not #KSL_IncludeGadgetSizeFunctions)
+      CompilerError "ListRequester requires #KSL_IncludeGadgetSizeFunctions = #True"
+    CompilerEndIf
+  CompilerElse
+    #KSL_IncludeGadgetSizeFunctions = #True
+  CompilerEndIf
+CompilerEndIf
+
+CompilerIf (Not Defined(KSL_IncludeGadgetItemFunctions, #PB_Constant))
+  #KSL_IncludeGadgetItemFunctions = #False
+CompilerEndIf
+
+CompilerIf (Not Defined(KSL_IncludeGadgetSizeFunctions, #PB_Constant))
+  #KSL_IncludeGadgetSizeFunctions = #False
+CompilerEndIf
+
+CompilerIf (Not Defined(KSL_IncludeDesktopFunctions, #PB_Constant))
+  #KSL_IncludeDesktopFunctions = #False
+CompilerEndIf
+
 CompilerIf (Not Defined(KSL_IncludeNetworkFunctions, #PB_Constant))
   CompilerIf (Defined(KSL_ExcludeNetworkFunctions, #PB_Constant))
     #KSL_IncludeNetworkFunctions = Bool(Not #KSL_ExcludeNetworkFunctions)
   CompilerElse
     #KSL_IncludeNetworkFunctions = #False
   CompilerEndIf
-CompilerEndIf
-
-CompilerIf (Not Defined(KSL_IncludeListRequester, #PB_Constant))
-  #KSL_IncludeListRequester = #False
 CompilerEndIf
 
 ;-
@@ -2581,14 +2602,14 @@ Procedure ShowInExplorer(FileOrFolder.s)
       
     CompilerElseIf (#Linux)
       NewList TryCommand.s()
-      ; Add more here, as "<executable>|<args>" where % char will be replaced with quoted FileOrFolder
-      AddString(TryCommand(), "io.elementary.files|%")
+      ; Add more here, as "<executable>|<args>" where %f will be replaced with quoted FileOrFolder
+      AddString(TryCommand(), "io.elementary.files| %f")
       
       Protected Executable.s
       ForEach (TryCommand())
         Executable = Which(StringField(TryCommand(), 1, "|"))
         If (Executable)
-          RunProgram(Executable, ReplaceString(StringField(TryCommand(), 2, "|"), "%", Quote(FileOrFolder)), GetPathPart(FileOrFolder))
+          RunProgram(Executable, ReplaceString(StringField(TryCommand(), 2, "|"), "%f", Quote(FileOrFolder)), GetPathPart(FileOrFolder))
           Break
         EndIf
       Next
@@ -2901,20 +2922,30 @@ Macro GadgetExtentY(_Gadget)
   (GadgetY(_Gadget) + GadgetHeight(_Gadget))
 EndMacro
 
-Macro GadgetRequiredWidth(_Gadget)
-  (GadgetWidth((_Gadget), #PB_Gadget_RequiredSize))
-EndMacro
-Macro GadgetRequiredHeight(_Gadget)
-  (GadgetHeight((_Gadget), #PB_Gadget_RequiredSize))
-EndMacro
-Macro FitGadgetWidth(_Gadget)
+CompilerIf (#KSL_IncludeGadgetSizeFunctions)
+  
+  Declare.i GadgetRequiredWidth(Gadget.i)
+  Declare.i GadgetRequiredHeight(Gadget.i)
+  
+CompilerElse
+  
+  Macro GadgetRequiredWidth(_Gadget)
+    (GadgetWidth((_Gadget), #PB_Gadget_RequiredSize))
+  EndMacro
+  Macro GadgetRequiredHeight(_Gadget)
+    (GadgetHeight((_Gadget), #PB_Gadget_RequiredSize))
+  EndMacro
+  
+CompilerEndIf
+
+Macro FitGadgetRequiredWidth(_Gadget)
   ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, GadgetRequiredWidth(_Gadget), #PB_Ignore)
 EndMacro
-Macro FitGadgetHeight(_Gadget)
+Macro FitGadgetRequiredHeight(_Gadget)
   ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, #PB_Ignore, GadgetRequiredHeight(_Gadget))
 EndMacro
-Macro FitGadgetSize(_Gadget)
-  SetGadgetSize((_Gadget), GadgetRequiredWidth(_Gadget), GadgetRequiredHeight(_Gadget))
+Macro FitGadgetRequiredSize(_Gadget)
+  ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, GadgetRequiredWidth(_Gadget), GadgetRequiredHeight(_Gadget))
 EndMacro
 
 Macro GetCanvasKey(_CanvasGadget)
@@ -2956,16 +2987,19 @@ Macro SetScrollAreaInnerHeight(_ScrollAreaGadget, _Height)
   SetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_InnerHeight, (_Height))
 EndMacro
 
-; Per PB 6.21 Help "not supported on Linux GTK" !
-Macro GetPanelWidth(_PanelGadget)
-  (GetGadgetAttribute((_PanelGadget), #PB_Panel_ItemWidth))
-EndMacro
-Macro GetPanelHeight(_PanelGadget)
-  (GetGadgetAttribute((_PanelGadget), #PB_Panel_ItemHeight))
-EndMacro
-Macro GetPanelTabHeight(_PanelGadget)
-  (GetGadgetAttribute((_PanelGadget), #PB_Panel_TabHeight))
-EndMacro
+CompilerIf (#GTK2 Or #GTK3)
+  ; Per PB 6.21 Help, PanelGadget attributes "not supported on Linux GTK" !
+CompilerElse
+  Macro GetPanelWidth(_PanelGadget)
+    (GetGadgetAttribute((_PanelGadget), #PB_Panel_ItemWidth))
+  EndMacro
+  Macro GetPanelHeight(_PanelGadget)
+    (GetGadgetAttribute((_PanelGadget), #PB_Panel_ItemHeight))
+  EndMacro
+  Macro GetPanelTabHeight(_PanelGadget)
+    (GetGadgetAttribute((_PanelGadget), #PB_Panel_TabHeight))
+  EndMacro
+CompilerEndIf
 
 Macro FinishOptionGadgetGroup()
   FreeGadget(TextGadget(#PB_Any, 0, 0, 20, 20, ""))
@@ -2987,7 +3021,21 @@ Procedure SelectGadget(Gadget.i)
   SetActiveGadget(Gadget)
 EndProcedure
 
-CompilerIf (#True)
+Procedure EnsureGadgetListOpen()
+  Static DummyWindow.i = #Null
+  If (UseGadgetList(0) = 0)
+    If (Not DummyWindow)
+      DummyWindow = OpenWindow(#PB_Any, 0, 0, 100, 100, "", #PB_Window_Invisible | #PB_Window_BorderLess)
+    EndIf
+    If (DummyWindow)
+      UseGadgetList(WindowID(DummyWindow))
+    EndIf
+  EndIf
+EndProcedure
+
+;-
+;- - Gadget Item Functions
+CompilerIf (#KSL_IncludeGadgetItemFunctions)
 
 Procedure.i GetSelectedGadgetItemData(Gadget.i, DefaultValue.i = 0)
   Protected Result.i = DefaultValue
@@ -3260,234 +3308,696 @@ Procedure ToggleSelectedGadgetItems(Gadget.i)
   EndIf
 EndProcedure
 
-CompilerEndIf
+CompilerEndIf ; #KSL_IncludeGadgetItemFunctions
 
-CompilerIf (#True)
+;-
+;- - Gadget Size Functions
+CompilerIf (#KSL_IncludeGadgetSizeFunctions)
+
+Macro FitGadgetPreferredWidth(_Gadget)
+  ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, GadgetPreferredWidth(_Gadget), #PB_Ignore)
+EndMacro
+Macro FitGadgetPreferredHeight(_Gadget)
+  ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, #PB_Ignore, GadgetPreferredHeight(_Gadget))
+EndMacro
+Macro FitGadgetPreferredSize(_Gadget)
+  ResizeGadget((_Gadget), #PB_Ignore, #PB_Ignore, GadgetPreferredWidth(_Gadget), GadgetPreferredHeight(_Gadget))
+EndMacro
+
+Macro StandardButtonHeight(_ButtonFlags = #Null)
+  (StandardGadgetHeight(#PB_GadgetType_Button, (_ButtonFlags)))
+EndMacro
+Macro StandardCheckboxHeight()
+  (StandardGadgetHeight(#PB_GadgetType_CheckBox))
+EndMacro
+Macro StandardComboBoxHeight(_ComboBoxFlags = #Null)
+  (StandardGadgetHeight(#PB_GadgetType_ComboBox, (_ComboBoxFlags)))
+EndMacro
+Macro StandardOptionHeight()
+  (StandardGadgetHeight(#PB_GadgetType_Option))
+EndMacro
+Macro StandardScrollbarSize()
+  (StandardGadgetHeight(#PB_GadgetType_ScrollBar))
+EndMacro
+Macro StandardStringGadgetHeight(_StringFlags = #Null)
+  (StandardGadgetHeight(#PB_GadgetType_String, (_StringFlags)))
+EndMacro
+Macro StandardTextGadgetHeight(_TextFlags = #Null)
+  (StandardGadgetHeight(#PB_GadgetType_Text, (_TextFlags)))
+EndMacro
+
+Macro _PBGadgetRequiredWidth(_Gadget)
+  (GadgetWidth((_Gadget), #PB_Gadget_RequiredSize))
+EndMacro
+Macro _PBGadgetRequiredHeight(_Gadget)
+  (GadgetHeight((_Gadget), #PB_Gadget_RequiredSize))
+EndMacro
+
+Global NewMap _KSL_StandardGadgetHeight.i()
 
 Procedure.i StandardGadgetHeight(Type.i, Flags.i = #PB_Default)
   Protected Result.i = 0
-  
-  Static ButtonHeight.i
-  Static StringHeight.i
-  Static TextHeight.i
-  Static CheckBoxHeight.i
-  Static OptionHeight.i
-  Static CalendarHeight.i
-  Static HyperLinkHeight.i
-  Static ComboBoxHeight.i
-  
-  ; As of PB 6.21, 0 = #PB_GadgetType_Unknown,
-  ; and there are 35 valid types, values 1-35.
-  If ((Type >= 1) And (Type <= 35))
+  If ((Type >= #KSL_GadgetType_Minimum) And (Type <= #KSL_GadgetType_Maximum))
     If (Flags = #PB_Default)
       Flags = #Null
     EndIf
-    Protected DummyWindow.i = #Null
-    If (UseGadgetList(0) = #Null)
-      DummyWindow = OpenWindow(#PB_Any, 0, 0, 100, 100, "", #PB_Window_Invisible)
-    EndIf
-    Select (Type)
-      Case #PB_GadgetType_Unknown
-        Result = 0
-        
-      Case #PB_GadgetType_Button
-        If (ButtonHeight = 0)
-          Protected Dummy.i
-          Dummy = ButtonGadget(#PB_Any, 0, 0, 20, 20, " ")
+    Protected ID.s = Str(Type) + "-" + Str(Flags)
+    If (FindMapElement(_KSL_StandardGadgetHeight(), ID))
+      Result = _KSL_StandardGadgetHeight()
+    Else
+      Protected Dummy.i = #Null
+      EnsureGadgetListOpen()
+      Select (Type)
+        Case #PB_GadgetType_Button
+          CompilerIf (#Mac)
+            ;Result = 25 ; from PB Help
+            Result = 28 ; from IDE GetRequiredSize.pb
+          CompilerElse
+            Dummy = ButtonGadget(#PB_Any, 0, 0, 10, 10, " ", Flags)
+            If (Dummy)
+              Result = _PBGadgetRequiredHeight(Dummy)
+            EndIf
+          CompilerEndIf
+        Case #PB_GadgetType_String
+          Dummy = StringGadget(#PB_Any, 0, 0, 10, 10, " ", Flags)
           If (Dummy)
-            ButtonHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
+            Result = GadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = ButtonHeight
-        
-      Case #PB_GadgetType_String
-        If ((StringHeight = 0) Or (Flags))
-          Dummy = StringGadget(#PB_Any, 0, 0, 20, 20, " ", Flags)
+        Case #PB_GadgetType_Text
+          Dummy = TextGadget(#PB_Any, 0, 0, 10, 10, " ", Flags)
           If (Dummy)
-            StringHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
+            Result = _PBGadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = StringHeight
-        
-      Case #PB_GadgetType_Text
-        If ((TextHeight = 0) Or (Flags))
-          Dummy = TextGadget(#PB_Any, 0, 0, 20, 20, " ", Flags)
+        Case #PB_GadgetType_CheckBox
+          Dummy = CheckBoxGadget(#PB_Any, 0, 0, 10, 10, " ", Flags)
           If (Dummy)
-            TextHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
+            Result = _PBGadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = TextHeight
-        
-      Case #PB_GadgetType_HyperLink
-        If ((HyperLinkHeight = 0) Or (Flags))
-          Dummy = HyperLinkGadget(#PB_Any, 0, 0, 20, 20, " ", #Black, Flags)
+        Case #PB_GadgetType_Option
+          Dummy = OptionGadget(#PB_Any, 0, 0, 10, 10, " ")
           If (Dummy)
-            HyperLinkHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
+            Result = _PBGadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = HyperLinkHeight
-        
-      Case #PB_GadgetType_CheckBox
-        If (CheckBoxHeight = 0)
-          Dummy = CheckBoxGadget(#PB_Any, 0, 0, 20, 20, " ")
+        Case #PB_GadgetType_ListView
+          Result = 4.0 * StandardTextGadgetHeight()
+        Case #PB_GadgetType_Frame
+          Dummy = FrameGadget(#PB_Any, 0, 0, 10, 10, " ", Flags)
           If (Dummy)
-            CheckBoxHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
+            Result = GadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = CheckBoxHeight
-        
-      Case #PB_GadgetType_Option
-        If (OptionHeight = 0)
-          Dummy = OptionGadget(#PB_Any, 0, 0, 20, 20, " ")
+        Case #PB_GadgetType_ComboBox
+          Dummy = ComboBoxGadget(#PB_Any, 0, 0, 10, 10, Flags)
           If (Dummy)
-            OptionHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
-            FinishOptionGadgetGroup()
+            Result = _PBGadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = OptionHeight
-        
-      Case #PB_GadgetType_Calendar
-        If ((CalendarHeight = 0) Or (Flags))
-          Dummy = CalendarGadget(#PB_Any, 0, 0, 20, 20, 0, Flags)
+        ;Case #PB_GadgetType_Image
+        Case #PB_GadgetType_HyperLink
+          Dummy = HyperLinkGadget(#PB_Any, 0, 0, 10, 10, " ", Flags)
           If (Dummy)
-            CalendarHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
+            Result = _PBGadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = CalendarHeight
-        
-      Case #PB_GadgetType_ComboBox
-        If (ComboBoxHeight = 0)
-          Dummy = ComboBoxGadget(#PB_Any, 0, 0, 20, 20, 0)
+        ;Case #PB_GadgetType_Container
+        Case #PB_GadgetType_ListIcon
+          Result = 8.0 * StandardTextGadgetHeight()
+        Case #PB_GadgetType_IPAddress
+          Dummy = IPAddressGadget(#PB_Any, 0, 0, 10, 10)
           If (Dummy)
-            ComboBoxHeight = GadgetHeight(Dummy, #PB_Gadget_RequiredSize)
-            FreeGadget(Dummy)
+            Result = _PBGadgetRequiredHeight(Dummy)
           EndIf
-        EndIf
-        Result = ComboBoxHeight
-      
-      Case #PB_GadgetType_ProgressBar
-        ; Assume "one TextGadget" height
-        Result = StandardGadgetHeight(#PB_GadgetType_Text)
-        
-      Case #PB_GadgetType_TrackBar
-        ; Assume "one ButtonGadget" height
-        Result = StandardGadgetHeight(#PB_GadgetType_Button)
-        
-      Case #PB_GadgetType_IPAddress, #PB_GadgetType_Shortcut
-        ; Assume "one StringGadget" height
-        Result = StandardGadgetHeight(#PB_GadgetType_String)
-        
-      Case #PB_GadgetType_Date, #PB_GadgetType_ExplorerCombo, #PB_GadgetType_Spin
-        ; Assume "one ComboBoxGadget" height
-        Result = StandardGadgetHeight(#PB_GadgetType_ComboBox)
-        
-      Case #PB_GadgetType_Editor, #PB_GadgetType_ListIcon, #PB_GadgetType_ListView, #PB_GadgetType_Scintilla, #PB_GadgetType_Tree
-        ; Assume "multiple StringGadget" height
-        Result = 4 * StandardGadgetHeight(#PB_GadgetType_String)
-        
-      Case #PB_GadgetType_ExplorerList, #PB_GadgetType_ExplorerTree, #PB_GadgetType_Web, #PB_GadgetType_WebView
-        ; Assume "even more StringGadget" height
-        Result = 8 * StandardGadgetHeight(#PB_GadgetType_String)
-        
-      Case #PB_GadgetType_ScrollBar
-        CompilerIf (#PB_Compiler_OS = #PB_OS_Windows)
-          Result = GetSystemMetrics_(#SM_CYHSCROLL)
-        CompilerElse
-          Result = StandardGadgetHeight(#PB_GadgetType_Text)
+        Case #PB_GadgetType_ProgressBar
+          Result = 1.0 * StandardTextGadgetHeight()
+        Case #PB_GadgetType_ScrollBar
+          Result = WindowsElse(GetSystemMetrics_(#SM_CXVSCROLL), StandardTextGadgetHeight())
+        Case #PB_GadgetType_ScrollArea
+          Result = 5 * StandardScrollbarSize()
+        Case #PB_GadgetType_TrackBar
+          Result = 1.0 * StandardButtonHeight()
+        Case #PB_GadgetType_Web
+          Result = 16.0 * StandardTextGadgetHeight()
+        ;Case #PB_GadgetType_ButtonImage
+        Case #PB_GadgetType_Calendar
+          Dummy = CalendarGadget(#PB_Any, 0, 0, 10, 10, Date(), Flags)
+          If (Dummy)
+            Result = _PBGadgetRequiredHeight(Dummy)
+          EndIf
+        Case #PB_GadgetType_Date
+          Dummy = DateGadget(#PB_Any, 0, 0, 10, 10, "%yyyy-%mm-%dd %hh:%ii", 0, Flags)
+          If (Dummy)
+            Result = GadgetRequiredHeight(Dummy)
+          EndIf
+        Case #PB_GadgetType_Editor
+          Result = 4.0 * StandardTextGadgetHeight()
+        Case #PB_GadgetType_ExplorerList
+          Result = StandardGadgetHeight(#PB_GadgetType_Web)
+        Case #PB_GadgetType_ExplorerTree
+          Result = StandardGadgetHeight(#PB_GadgetType_Tree)
+        Case #PB_GadgetType_ExplorerCombo
+          Result = StandardGadgetHeight(#PB_GadgetType_ComboBox)
+        Case #PB_GadgetType_Spin
+          ;Result = StandardStringGadgetHeight()
+          Result = 1.00 * StandardButtonHeight()
+        Case #PB_GadgetType_Tree
+          Result = 8.0 * StandardTextGadgetHeight()
+        ;Case #PB_GadgetType_Panel
+        ;Case #PB_GadgetType_Splitter
+        Case #PB_GadgetType_MDI
+          Result = StandardGadgetHeight(#PB_GadgetType_Web)
+        Case #PB_GadgetType_Scintilla
+          Result = 1.5 * StandardGadgetHeight(#PB_GadgetType_Editor)
+        Case #PB_GadgetType_Shortcut
+          Dummy = ShortcutGadget(#PB_Any, 0, 0, 10, 10, #PB_Shortcut_Command | #PB_Shortcut_W)
+          If (Dummy)
+            Result = GadgetRequiredHeight(Dummy)
+          EndIf
+        ;Case #PB_GadgetType_Canvas
+        CompilerIf (Defined(PB_GadgetType_OpenGL, #PB_Constant))
+        Case #PB_GadgetType_OpenGL
+          Result = StandardGadgetHeight(#PB_GadgetType_Web)
         CompilerEndIf
-      
-      Case #PB_GadgetType_ButtonImage
-        ; Assume same as a standard/text button ?
-        Result = StandardGadgetHeight(#PB_GadgetType_Button)
+        CompilerIf (Defined(PB_GadgetType_WebView, #PB_Constant))
+        Case #PB_GadgetType_WebView
+          Result = StandardGadgetHeight(#PB_GadgetType_Web)
+        CompilerEndIf
         
-      Case #PB_GadgetType_Frame
-        ; Special case, for FrameGadget, return a reasonable text offset for the header itself
-        Result = StandardGadgetHeight(#PB_GadgetType_String)
-      
-      Case #PB_GadgetType_Canvas, #PB_GadgetType_Container, #PB_GadgetType_Image, #PB_GadgetType_MDI, #PB_GadgetType_OpenGL, #PB_GadgetType_Panel, #PB_GadgetType_ScrollArea, #PB_GadgetType_Splitter
-        ; These don't really make sense to have a "standard height" !
-        Result = StandardGadgetHeight(#PB_GadgetType_Button)
-      
-    EndSelect
-    If (DummyWindow)
-      CloseWindow(DummyWindow)
-    EndIf
-    
-    If (Result <= 0)
-      Result = 20
+        Default ; For those which don't make sense to have a "standard" height
+          Result = 1.0 * StandardButtonHeight()
+          ;Result = 0
+        
+      EndSelect
+      If (Dummy)
+        FreeGadget(Dummy)
+      EndIf
+      _KSL_StandardGadgetHeight(ID) = Result
     EndIf
   EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Declare.i GetHWNDBorderSize(hWnd.i)
+
+Procedure.i GadgetBorderSize(Gadget.i)
+  Protected Result.i = 0
+  CompilerIf (#Windows)
+    Result = GetHWNDBorderSize(GadgetID(Gadget))
+  CompilerElse
+    ; ...
+  CompilerEndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Global NewMap _KSL_GadgetBorderSize.i()
+
+Procedure.i StandardGadgetBorderSize(Type.i, Flags.i = #Null)
+  Protected Result.i = 0
+  If ((Type >= #KSL_GadgetType_Minimum) And (Type <= #KSL_GadgetType_Maximum))
+    Protected ID.s = Str(Type) + "-" + Str(Flags)
+    If (FindMapElement(_KSL_GadgetBorderSize(), ID))
+      Result = _KSL_GadgetBorderSize()
+    Else
+      Protected Dummy.i = #Null
+      EnsureGadgetListOpen()
+      Select (Type)
+        ;Case #PB_GadgetType_Button
+        Case #PB_GadgetType_String
+          If (Flags & #PB_String_BorderLess)
+            Result = 0
+          Else
+            If (#False) ; This method seems to return 0, at least on Windows
+              Dummy = StringGadget(#PB_Any, 0, 0, 10, 10, " ")
+              Result = _PBGadgetRequiredHeight(Dummy)
+              FreeGadget(Dummy)
+              Dummy = StringGadget(#PB_Any, 0, 0, 10, 10, " ", #PB_String_BorderLess)
+              Result = (Result - _PBGadgetRequiredHeight(Dummy)) / 2
+            Else
+              Result = StandardGadgetBorderSize(#PB_GadgetType_Text)
+            EndIf
+          EndIf
+        Case #PB_GadgetType_Text
+          If (#True) ; This method seems to work OK, at least on Windows
+            Dummy = TextGadget(#PB_Any, 0, 0, 10, 10, " ", #PB_Text_Border)
+            Result = _PBGadgetRequiredHeight(Dummy)
+            FreeGadget(Dummy)
+            Dummy = TextGadget(#PB_Any, 0, 0, 10, 10, " ")
+            Result = (Result - _PBGadgetRequiredHeight(Dummy)) / 2
+          EndIf
+        ;Case #PB_GadgetType_CheckBox
+        ;Case #PB_GadgetType_Option
+        ;Case #PB_GadgetType_ListView
+        ;Case #PB_GadgetType_Frame
+        ;Case #PB_GadgetType_ComboBox
+        Case #PB_GadgetType_Image
+          If (#True)
+            Protected DummyImage.i
+            DummyImage = CreateImage(#PB_Any, 10, 10)
+            If (DummyImage)
+              Dummy = ImageGadget(#PB_Any, 0, 0, 10, 10, ImageID(DummyImage), Flags)
+              Result = _PBGadgetRequiredHeight(Dummy)
+              FreeGadget(Dummy)
+              Dummy = ImageGadget(#PB_Any, 0, 0, 10, 10, ImageID(DummyImage), #Null)
+              Result = (Result - _PBGadgetRequiredHeight(Dummy)) / 2
+              FreeImage(DummyImage)
+            EndIf
+          EndIf
+        ;Case #PB_GadgetType_HyperLink
+        ;Case #PB_GadgetType_Container
+        ;Case #PB_GadgetType_ListIcon
+        ;Case #PB_GadgetType_IPAddress
+        ;  Result = StandardGadgetBorderSize(#PB_GadgetType_String)
+        ;Case #PB_GadgetType_ProgressBar
+        ;Case #PB_GadgetType_ScrollBar
+        ;Case #PB_GadgetType_ScrollArea
+        ;Case #PB_GadgetType_TrackBar
+        ;Case #PB_GadgetType_Web
+        ;Case #PB_GadgetType_ButtonImage
+        ;Case #PB_GadgetType_Calendar
+        ;Case #PB_GadgetType_Date
+        ;Case #PB_GadgetType_Editor
+        ;Case #PB_GadgetType_ExplorerList
+        ;Case #PB_GadgetType_ExplorerTree
+        ;Case #PB_GadgetType_ExplorerCombo
+        ;Case #PB_GadgetType_Spin
+        ;Case #PB_GadgetType_Tree
+        ;Case #PB_GadgetType_Panel
+        ;Case #PB_GadgetType_Splitter
+        ;Case #PB_GadgetType_MDI
+        ;Case #PB_GadgetType_Scintilla
+        ;Case #PB_GadgetType_Shortcut
+        ;  Result = StandardGadgetBorderSize(#PB_GadgetType_String)
+        ;Case #PB_GadgetType_Canvas
+        ;Case #PB_GadgetType_OpenGL
+        ;Case #PB_GadgetType_WebView
+        
+      EndSelect
+      If (Dummy)
+        FreeGadget(Dummy)
+      EndIf
+      _KSL_GadgetBorderSize(ID) = Result
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i GadgetRequiredHeight(Gadget.i)
+  Protected Result.i = 0
+  Protected Type.i = GadgetType(Gadget)
+  Select (Type)
+    Case #PB_GadgetType_Button
+      CompilerIf (#Mac)
+        ;Result = 25 ; from PB Help
+        Result = 28 ; from IDE GetRequiredSize.pb
+      CompilerElse
+        Result = _PBGadgetRequiredHeight(Gadget)
+        If (Result < StandardButtonHeight())
+          Result = StandardButtonHeight()
+        EndIf
+      CompilerEndIf
+    Case #PB_GadgetType_String
+      Result = _PBGadgetRequiredHeight(Gadget)
+      CompilerIf (#Mac)
+        If (Result < 24) ; from IDE GetRequiredSize.pb
+          Result = 24
+        EndIf
+      CompilerEndIf
+    Case #PB_GadgetType_Text
+      If (GetGadgetText(Gadget) = "")
+        SetGadgetText(Gadget, " ")
+        Result = _PBGadgetRequiredHeight(Gadget)
+        SetGadgetText(Gadget, "")
+      Else
+        Result = _PBGadgetRequiredHeight(Gadget)
+      EndIf
+    Case #PB_GadgetType_ListView
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Frame
+      Result = 1.5 * StandardTextGadgetHeight()
+    Case #PB_GadgetType_ListIcon
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_ProgressBar
+      Result = StandardGadgetHeight(Type)
+      CompilerIf (#Windows)
+        If (GetWindowLong_(GadgetID(Gadget), #GWL_STYLE) & #PBS_VERTICAL)
+          Result * 2
+        EndIf
+      CompilerEndIf
+    Case #PB_GadgetType_ScrollBar
+      Result = _PBGadgetRequiredHeight(Gadget)
+      If (Result = 0) ; Vertical!
+        Result = 4 * _PBGadgetRequiredWidth(Gadget)
+      EndIf
+    Case #PB_GadgetType_ScrollArea
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_TrackBar
+      Result = StandardGadgetHeight(Type)
+      CompilerIf (#Windows)
+        If (GetWindowLong_(GadgetID(Gadget), #GWL_STYLE) & #TBS_VERT)
+          Result * 3
+        EndIf
+      CompilerEndIf
+    Case #PB_GadgetType_Web
+      ;Result = StandardGadgetHeight(Type)
+      Result = StandardGadgetHeight(#PB_GadgetType_ListIcon)
+    Case #PB_GadgetType_Date
+      Result = _PBGadgetRequiredHeight(Gadget)
+      CompilerIf (#True)
+        Result + 0.50 * StandardTextGadgetHeight()
+      CompilerEndIf
+    Case #PB_GadgetType_Editor
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_ExplorerList
+      ;Result = StandardGadgetHeight(Type)
+      Result = StandardGadgetHeight(#PB_GadgetType_ListIcon)
+    Case #PB_GadgetType_ExplorerTree
+      Result = StandardGadgetHeight(#PB_GadgetType_Tree)
+    Case #PB_GadgetType_ExplorerCombo
+      Result = StandardGadgetHeight(#PB_GadgetType_ComboBox)
+    Case #PB_GadgetType_Spin
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Tree
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Splitter
+      Protected First.i, Second.i
+      First  = GetGadgetAttribute(Gadget, #PB_Splitter_FirstGadget)
+      Second = GetGadgetAttribute(Gadget, #PB_Splitter_SecondGadget)
+      If (GadgetY(First) = GadgetY(Second)) ; Vertical
+        Result = GadgetRequiredHeight(First)
+        Second = GadgetRequiredHeight(Second)
+        If (Second > Result)
+          Result = Second
+        EndIf
+      Else ; Horizontal
+        Result = GadgetRequiredHeight(First)
+        Result + GadgetRequiredHeight(Second)
+        First  = GadgetHeight(First)
+        Second = GadgetHeight(Second)
+        Result + (GadgetHeight(Gadget) - First - Second)
+      EndIf
+    Case #PB_GadgetType_MDI
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Scintilla
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Shortcut
+      Result = 1.10 * _PBGadgetRequiredHeight(Gadget)
+    Case #PB_GadgetType_Canvas
+      Result = StandardGadgetHeight(Type)
+    CompilerIf (Defined(PB_GadgetType_OpenGL, #PB_Constant))
+    Case #PB_GadgetType_OpenGL
+      Result = StandardGadgetHeight(#PB_GadgetType_Web)
+    CompilerEndIf
+    CompilerIf (Defined(PB_GadgetType_WebView, #PB_Constant))
+    Case #PB_GadgetType_WebView
+      Result = StandardGadgetHeight(#PB_GadgetType_Web)
+    CompilerEndIf
+      
+    Default
+      If ((Type >= #KSL_GadgetType_Minimum) And (Type <= #KSL_GadgetType_Maximum))
+        Result = _PBGadgetRequiredHeight(Gadget)
+      EndIf
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i GadgetRequiredWidth(Gadget.i)
+  Protected Result.i = 0
+  Static DummyText.i = #Null
+  Protected Type.i = GadgetType(Gadget)
+  Select (Type)
+    Case #PB_GadgetType_Button
+      Result = _PBGadgetRequiredWidth(Gadget)
+      If (Result < GadgetRequiredHeight(Gadget))
+        Result = GadgetRequiredHeight(Gadget)
+      EndIf
+    Case #PB_GadgetType_String
+      Result = _PBGadgetRequiredWidth(Gadget)
+      If (Result < GadgetRequiredHeight(Gadget))
+        Result = GadgetRequiredHeight(Gadget)
+      EndIf
+    Case #PB_GadgetType_Text
+      Result = _PBGadgetRequiredWidth(Gadget)
+      Result = MaxI(Result, 1)
+    Case #PB_GadgetType_ListView
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Frame
+      If (GetGadgetText(Gadget))
+        If ((Not DummyText) Or (Not IsGadget(DummyText)))
+          EnsureGadgetListOpen()
+          DummyText = TextGadget(#PB_Any, 0, 0, 10, 10, "")
+          HideGadget(DummyText, #True)
+        EndIf
+        SetGadgetText(DummyText, GetGadgetText(Gadget))
+        Result = _PBGadgetRequiredWidth(DummyText) + 1.1 * StandardTextGadgetHeight()
+      Else
+        Result = 1.5 * StandardTextGadgetHeight()
+      EndIf
+    Case #PB_GadgetType_ComboBox
+      Result = 3.0 * GadgetRequiredHeight(Gadget)
+    Case #PB_GadgetType_ListIcon
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_ProgressBar
+      Result = StandardGadgetHeight(Type)
+      CompilerIf (#Windows)
+        If (Not (GetWindowLong_(GadgetID(Gadget), #GWL_STYLE) & #PBS_VERTICAL))
+          Result * 2
+        EndIf
+      CompilerEndIf
+    Case #PB_GadgetType_ScrollBar
+      Result = _PBGadgetRequiredWidth(Gadget)
+      If (Result = 0) ; Horizontal!
+        Result = 4 * _PBGadgetRequiredHeight(Gadget)
+      EndIf
+    Case #PB_GadgetType_ScrollArea
+      Result = GadgetRequiredHeight(Gadget)
+    Case #PB_GadgetType_TrackBar
+      Result = StandardGadgetHeight(Type)
+      CompilerIf (#Windows)
+        If (Not (GetWindowLong_(GadgetID(Gadget), #GWL_STYLE) & #TBS_VERT))
+          Result * 3
+        EndIf
+      CompilerEndIf
+    Case #PB_GadgetType_Web
+      Result = GadgetRequiredHeight(Gadget) * 4 / 3
+    Case #PB_GadgetType_Date
+      Result = _PBGadgetRequiredWidth(Gadget)
+      CompilerIf (#True)
+        Result + 0.50 * StandardTextGadgetHeight()
+      CompilerEndIf
+    Case #PB_GadgetType_Editor
+      Result = GadgetRequiredHeight(Gadget) * 16 / 9
+    Case #PB_GadgetType_ExplorerList
+      Result = GadgetRequiredHeight(Gadget) * 4 / 3
+    Case #PB_GadgetType_ExplorerTree
+      Result = StandardGadgetHeight(#PB_GadgetType_Tree)
+    Case #PB_GadgetType_ExplorerCombo
+      Result = 5.0 * GadgetRequiredHeight(Gadget)
+    Case #PB_GadgetType_Spin
+      Result = _PBGadgetRequiredHeight(Gadget) + 1.5 * StandardButtonHeight()
+    Case #PB_GadgetType_Tree
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Splitter
+      Protected First.i, Second.i
+      First  = GetGadgetAttribute(Gadget, #PB_Splitter_FirstGadget)
+      Second = GetGadgetAttribute(Gadget, #PB_Splitter_SecondGadget)
+      If (GadgetY(First) = GadgetY(Second)) ; Vertical
+        Result = GadgetRequiredWidth(First)
+        Result + GadgetRequiredWidth(Second)
+        First  = GadgetWidth(First)
+        Second = GadgetWidth(Second)
+        Result + (GadgetWidth(Gadget) - First - Second)
+      Else ; Horizontal
+        Result = GadgetRequiredWidth(First)
+        Second = GadgetRequiredWidth(Second)
+        If (Second > Result)
+          Result = Second
+        EndIf
+      EndIf
+    Case #PB_GadgetType_MDI
+      Result = StandardGadgetHeight(Type)
+    Case #PB_GadgetType_Scintilla
+      Result = GadgetRequiredHeight(Gadget) * 16 / 9
+    Case #PB_GadgetType_Shortcut
+      Result = GadgetRequiredHeight(Gadget) * 6
+    Case #PB_GadgetType_Canvas
+      Result = StandardGadgetHeight(Type)
+    CompilerIf (Defined(PB_GadgetType_OpenGL, #PB_Constant))
+    Case #PB_GadgetType_OpenGL
+      Result = StandardGadgetHeight(Type)
+    CompilerEndIf
+    CompilerIf (Defined(PB_GadgetType_WebView, #PB_Constant))
+    Case #PB_GadgetType_WebView
+      Result = StandardGadgetHeight(Type)
+    CompilerEndIf
+      
+    Default
+      If ((Type >= #KSL_GadgetType_Minimum) And (Type <= #KSL_GadgetType_Maximum))
+        Result = _PBGadgetRequiredWidth(Gadget)
+      EndIf
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i GadgetPreferredHeight(Gadget.i)
+  Protected Result.i = GadgetRequiredHeight(Gadget)
+  
+  Protected Type.i = GadgetType(Gadget)
+  Select (Type)
+    Case #PB_GadgetType_ListView, #PB_GadgetType_ListIcon, #PB_GadgetType_Editor
+      Protected N.i
+      N = CountGadgetItems(Gadget)
+      If (N > 0)
+        Result = (4 + 2 * Log10(N)) * StandardTextGadgetHeight()
+        If (Result < StandardGadgetHeight(Type))
+          Result = StandardGadgetHeight(Type)
+        Else
+          CompilerIf (#True)
+            Protected Limit.i
+            If (ExamineDesktops())
+              Limit = DesktopHeight(0) * 0.50
+              If (Result > Limit)
+                Result = Limit
+              EndIf
+            EndIf
+          CompilerEndIf
+        EndIf
+      EndIf
+    Case #PB_GadgetType_ScrollArea
+      Result = GetGadgetAttribute(Gadget, #PB_ScrollArea_InnerHeight)
+    Case #PB_GadgetType_Web, #PB_GadgetType_ExplorerList
+      Result = StandardGadgetHeight(#PB_GadgetType_Web)
+    Case #PB_GadgetType_Tree
+      N = CountGadgetItems(Gadget)
+      If (N > 0)
+        Result = (4 + 2 * Log10(N)) * StandardCheckboxHeight()
+        If (Result < StandardGadgetHeight(Type))
+          Result = StandardGadgetHeight(Type)
+        Else
+          CompilerIf (#True)
+            If (ExamineDesktops())
+              Limit = DesktopHeight(0) * 0.50
+              If (Result > Limit)
+                Result = Limit
+              EndIf
+            EndIf
+          CompilerEndIf
+        EndIf
+      EndIf
+    Case #PB_GadgetType_ExplorerTree
+      Result = 2.0 * GadgetRequiredHeight(Gadget)
+  EndSelect
   
   ProcedureReturn (Result)
 EndProcedure
 
-Macro StandardButtonHeight()
-  StandardGadgetHeight(#PB_GadgetType_Button)
-EndMacro
-
-Macro StandardCheckBoxHeight()
-  StandardGadgetHeight(#PB_GadgetType_CheckBox)
-EndMacro
-
-Macro StandardComboBoxHeight()
-  StandardGadgetHeight(#PB_GadgetType_ComboBox)
-EndMacro
-
-Macro StandardOptionGadgetHeight()
-  StandardGadgetHeight(#PB_GadgetType_Option)
-EndMacro
-
-Macro StandardScrollBarHeight()
-  StandardGadgetHeight(#PB_GadgetType_ScrollBar)
-EndMacro
-
-Macro StandardStringGadgetHeight(_Flags = #PB_Default)
-  StandardGadgetHeight(#PB_GadgetType_String, (_Flags))
-EndMacro
-
-Macro StandardTextGadgetHeight(_Flags = #PB_Default)
-  StandardGadgetHeight(#PB_GadgetType_Text, (_Flags))
-EndMacro
-
-Procedure.i EstimateGadgetRequiredWidth(Gadget.i)
-  Protected Result.i = 0
-  EventType()
-  Protected i.i, N.i
-  Protected DummyGadget.i = #Null
+Procedure.i GadgetPreferredWidth(Gadget.i)
+  Protected Result.i = GadgetRequiredWidth(Gadget)
+  
+  Static DummyText.i = #Null
   Select (GadgetType(Gadget))
     Case #PB_GadgetType_String
-      DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, GetGadgetText(Gadget), #PB_Text_Border)
-      Result = GadgetRequiredWidth(DummyGadget) + GadgetRequiredHeight(DummyGadget)
-      Result = MaxI(Result, 1 * StandardStringGadgetHeight())
-    Case #PB_GadgetType_Frame
-      DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, GetGadgetText(Gadget), #PB_Text_Border)
-      Result = GadgetRequiredWidth(DummyGadget) + GadgetRequiredHeight(DummyGadget)
-    Case #PB_GadgetType_ComboBox, #PB_GadgetType_ListView
-      Result = 2 * StandardComboBoxHeight()
-      DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, "", #PB_Text_Border)
+      If ((Not DummyText) Or (Not IsGadget(DummyText)))
+        EnsureGadgetListOpen()
+        DummyText = TextGadget(#PB_Any, 0, 0, 10, 10, "")
+        HideGadget(DummyText, #True)
+      EndIf
+      SetGadgetText(DummyText, GetGadgetText(Gadget))
+      Result + _PBGadgetRequiredWidth(DummyText)
+    Case #PB_GadgetType_ListView
+      If ((Not DummyText) Or (Not IsGadget(DummyText)))
+        EnsureGadgetListOpen()
+        DummyText = TextGadget(#PB_Any, 0, 0, 10, 10, "")
+        HideGadget(DummyText, #True)
+      EndIf
+      Protected N.i
       N = CountGadgetItems(Gadget)
-      For i = 0 To N - 1
-        SetGadgetText(DummyGadget, GetGadgetItemText(Gadget, i))
-        Result = MaxI(Result, GadgetRequiredWidth(DummyGadget) + 1.5 * StandardComboBoxHeight())
+      Protected Width.i
+      Protected i.i
+      For i = 0 To (N-1)
+        SetGadgetText(DummyText, GetGadgetItemText(Gadget, i))
+        Width = _PBGadgetRequiredWidth(DummyText) + 1.5 * StandardScrollbarSize()
+        If (Result < Width)
+          Result = Width
+        EndIf
       Next i
-    Default
-      Result = GadgetRequiredWidth(Gadget)
+    Case #PB_GadgetType_ComboBox
+      If ((Not DummyText) Or (Not IsGadget(DummyText)))
+        EnsureGadgetListOpen()
+        DummyText = TextGadget(#PB_Any, 0, 0, 10, 10, "")
+        HideGadget(DummyText, #True)
+      EndIf
+      N = CountGadgetItems(Gadget)
+      Protected Height.i
+      Height = _PBGadgetRequiredHeight(Gadget)
+      For i = 0 To (N-1)
+        SetGadgetText(DummyText, GetGadgetItemText(Gadget, i))
+        Width = _PBGadgetRequiredWidth(DummyText) + 1.5 * Height
+        If (Result < Width)
+          Result = Width
+        EndIf
+      Next i
+    Case #PB_GadgetType_ListIcon
+      N = GetGadgetAttribute(Gadget, #PB_ListIcon_ColumnCount)
+      Debug N
+      Width = 0
+      For i = 0 To (N-1)
+        Width + GetGadgetItemAttribute(Gadget, 0, #PB_ListIcon_ColumnWidth, i)
+      Next i
+      Width + 1.5 * StandardScrollbarSize()
+      Result = Width
+    Case #PB_GadgetType_ScrollArea
+      Result = GetGadgetAttribute(Gadget, #PB_ScrollArea_InnerWidth)
+    Case #PB_GadgetType_Editor
+      If ((Not DummyText) Or (Not IsGadget(DummyText)))
+        EnsureGadgetListOpen()
+        DummyText = TextGadget(#PB_Any, 0, 0, 10, 10, "")
+        HideGadget(DummyText, #True)
+      EndIf
+      N = CountGadgetItems(Gadget)
+      For i = 0 To (N-1)
+        SetGadgetText(DummyText, GetGadgetItemText(Gadget, i))
+        Width = _PBGadgetRequiredWidth(DummyText) + 2.0 * StandardScrollbarSize()
+        If (Result < Width)
+          Result = Width
+        EndIf
+      Next i
+    Case #PB_GadgetType_Web, #PB_GadgetType_ExplorerList
+      Result = GadgetPreferredHeight(Gadget) * 4 / 3
+    Case #PB_GadgetType_ListIcon
+      N = GetGadgetAttribute(Gadget, #PB_ListIcon_ColumnCount)
+      Debug N
+      Width = 0
+      For i = 0 To (N-1)
+        Width + GetGadgetItemAttribute(Gadget, 0, #PB_ListIcon_ColumnWidth, i)
+      Next i
+      Width + 1.5 * StandardScrollbarSize()
+      Result = Width
+    Case #PB_GadgetType_Tree
+      If ((Not DummyText) Or (Not IsGadget(DummyText)))
+        EnsureGadgetListOpen()
+        DummyText = TextGadget(#PB_Any, 0, 0, 10, 10, "")
+        HideGadget(DummyText, #True)
+      EndIf
+      N = CountGadgetItems(Gadget)
+      For i = 0 To (N-1)
+        SetGadgetText(DummyText, GetGadgetItemText(Gadget, i))
+        Width = _PBGadgetRequiredWidth(DummyText)
+        Width + (2.5 + GetGadgetItemAttribute(Gadget, i, #PB_Tree_SubLevel)) * StandardButtonHeight()
+        If (Result < Width)
+          Result = Width
+        EndIf
+      Next i
+    Case #PB_GadgetType_ExplorerTree
+      Result = 2.0 * GadgetRequiredWidth(Gadget)
+    Case #PB_GadgetType_ExplorerCombo
+      Result = 2.0 * GadgetRequiredWidth(Gadget)
   EndSelect
-  If (DummyGadget)
-    FreeGadget(DummyGadget)
-  EndIf
   
   ProcedureReturn (Result)
 EndProcedure
 
-CompilerEndIf
+Procedure ResetGadgetSizeCache()
+  ClearMap(_KSL_StandardGadgetHeight())
+  ClearMap(_KSL_GadgetBorderSize())
+EndProcedure
+
+CompilerEndIf ; #KSL_IncludeGadgetSizeFunctions
 
 ;-
 
@@ -3543,6 +4053,69 @@ CompilerElse
     MenuHeight()
   EndMacro
 CompilerEndIf
+
+Procedure.i RegisterCustomEvent(MinimumEventValue.i = #PB_Ignore)
+  Static EventValue.i = (#PB_Event_FirstCustomValue - 1)
+  EventValue + 1
+  If (MinimumEventValue > #PB_Event_FirstCustomValue)
+    If (EventValue < MinimumEventValue)
+      EventValue = MinimumEventValue
+    EndIf
+  EndIf
+  ProcedureReturn (EventValue)
+EndProcedure
+
+Procedure.i RegisterCustomEventType(MinimumEventTypeValue.i = #PB_Ignore)
+  Static EventTypeValue.i = (#PB_EventType_FirstCustomValue - 1)
+  EventTypeValue + 1
+  If (MinimumEventTypeValue > #PB_EventType_FirstCustomValue)
+    If (EventTypeValue < MinimumEventTypeValue)
+      EventTypeValue = MinimumEventTypeValue
+    EndIf
+  EndIf
+  ProcedureReturn (EventTypeValue)
+EndProcedure
+
+Procedure.i RegisterCustomMenuItem(MinimumMenuItemValue.i = #PB_Ignore)
+  Static MenuItemValue.i = (#KSL_MenuItem_FirstCustomValue - 1)
+  MenuItemValue + 1
+  If (MinimumMenuItemValue > #KSL_MenuItem_FirstCustomValue)
+    If (MenuItemValue < MinimumMenuItemValue)
+      MenuItemValue = MinimumMenuItemValue
+    EndIf
+  EndIf
+  ProcedureReturn (MenuItemValue)
+EndProcedure
+
+Procedure.i IsMinimized(Window.i)
+  ProcedureReturn (Bool(GetWindowState(Window) = #PB_Window_Minimize))
+EndProcedure
+Procedure.i IsMaximized(Window.i)
+  ProcedureReturn (Bool(GetWindowState(Window) = #PB_Window_Maximize))
+EndProcedure
+
+Procedure.i WindowCenterX(Window.i)
+  ProcedureReturn (WindowX(Window) + WindowWidth(Window)/2)
+EndProcedure
+Procedure.i WindowCenterY(Window.i, PercentDown.f = 0.50)
+  ProcedureReturn (WindowY(Window) + WindowHeight(Window) * PercentDown)
+EndProcedure
+Procedure GetWindowCenterXY(Window.i, *CenterX.INTEGER, *CenterY.INTEGER, YPercentDown.f = 0.50)
+  If (*CenterX)
+    *CenterX\i = WindowCenterX(Window)
+  EndIf
+  If (*CenterY)
+    *CenterY\i = WindowCenterY(Window, YPercentDown)
+  EndIf
+EndProcedure
+
+Procedure CenterWindowInWindow(ChildWindow.i, ParentWindow.i, YPercentDown.f = 0.50)
+  MoveWindow(ChildWindow, WindowX(ParentWindow) + (WindowWidth(ParentWindow) - WindowWidth(ChildWindow))/2, WindowY(ParentWindow) + (WindowHeight(ParentWindow) - WindowHeight(ChildWindow)) * YPercentDown)
+EndProcedure
+
+;-
+;- - Desktop Functions
+CompilerIf (#KSL_IncludeDesktopFunctions)
 
 Procedure.i CountDesktops()
   ProcedureReturn (ExamineDesktops())
@@ -3692,28 +4265,6 @@ Procedure.s DesktopIDString(i.i)
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure.i IsMinimized(Window.i)
-  ProcedureReturn (Bool(GetWindowState(Window) = #PB_Window_Minimize))
-EndProcedure
-Procedure.i IsMaximized(Window.i)
-  ProcedureReturn (Bool(GetWindowState(Window) = #PB_Window_Maximize))
-EndProcedure
-
-Procedure.i WindowCenterX(Window.i)
-  ProcedureReturn (WindowX(Window) + WindowWidth(Window)/2)
-EndProcedure
-Procedure.i WindowCenterY(Window.i, PercentDown.f = 0.50)
-  ProcedureReturn (WindowY(Window) + WindowHeight(Window) * PercentDown)
-EndProcedure
-Procedure GetWindowCenterXY(Window.i, *CenterX.INTEGER, *CenterY.INTEGER, YPercentDown.f = 0.50)
-  If (*CenterX)
-    *CenterX\i = WindowCenterX(Window)
-  EndIf
-  If (*CenterY)
-    *CenterY\i = WindowCenterY(Window, YPercentDown)
-  EndIf
-EndProcedure
-
 Procedure.i DesktopFromPoint(x.i, y.i)
   Protected Result.i = -1
   Protected N.i = CountDesktops()
@@ -3759,10 +4310,6 @@ Procedure CenterWindowInDesktop(Window.i, Desktop.i, YPercentDown.f = 0.50)
   MoveWindow(Window, DesktopX(Desktop) + (DesktopWidth(Desktop) - WindowWidth(Window))/2, DesktopY(Desktop) + (DesktopHeight(Desktop) - WindowHeight(Window)) * YPercentDown)
 EndProcedure
 
-Procedure CenterWindowInWindow(ChildWindow.i, ParentWindow.i, YPercentDown.f = 0.50)
-  MoveWindow(ChildWindow, WindowX(ParentWindow) + (WindowWidth(ParentWindow) - WindowWidth(ChildWindow))/2, WindowY(ParentWindow) + (WindowHeight(ParentWindow) - WindowHeight(ChildWindow)) * YPercentDown)
-EndProcedure
-
 Procedure.i SameDesktop(Window1.i, Window2.i)
   ProcedureReturn (Bool(DesktopFromWindow(Window1) = DesktopFromWindow(Window2)))
 EndProcedure
@@ -3773,38 +4320,7 @@ Procedure EnsureSameDesktop(ChildWindow.i, ParentWindow.i)
   EndIf
 EndProcedure
 
-Procedure.i RegisterCustomEvent(MinimumEventValue.i = #PB_Ignore)
-  Static EventValue.i = (#PB_Event_FirstCustomValue - 1)
-  EventValue + 1
-  If (MinimumEventValue > #PB_Event_FirstCustomValue)
-    If (EventValue < MinimumEventValue)
-      EventValue = MinimumEventValue
-    EndIf
-  EndIf
-  ProcedureReturn (EventValue)
-EndProcedure
-
-Procedure.i RegisterCustomEventType(MinimumEventTypeValue.i = #PB_Ignore)
-  Static EventTypeValue.i = (#PB_EventType_FirstCustomValue - 1)
-  EventTypeValue + 1
-  If (MinimumEventTypeValue > #PB_EventType_FirstCustomValue)
-    If (EventTypeValue < MinimumEventTypeValue)
-      EventTypeValue = MinimumEventTypeValue
-    EndIf
-  EndIf
-  ProcedureReturn (EventTypeValue)
-EndProcedure
-
-Procedure.i RegisterCustomMenuItem(MinimumMenuItemValue.i = #PB_Ignore)
-  Static MenuItemValue.i = (#KSL_MenuItem_FirstCustomValue - 1)
-  MenuItemValue + 1
-  If (MinimumMenuItemValue > #KSL_MenuItem_FirstCustomValue)
-    If (MenuItemValue < MinimumMenuItemValue)
-      MenuItemValue = MinimumMenuItemValue
-    EndIf
-  EndIf
-  ProcedureReturn (MenuItemValue)
-EndProcedure
+CompilerEndIf ; #KSL_IncludeDesktopFunctions
 
 ;-
 
@@ -3820,6 +4336,9 @@ Procedure.i ListRequesterWindowID()
   EndIf
   ProcedureReturn (#Null)
 EndProcedure
+
+Global _KSL_ListRequesterOKLabel.s     = "OK"
+Global _KSL_ListRequesterCancelLabel.s = "Cancel"
 
 Prototype.i KSL_ListRequesterCallback(Selection.s) ; return 0 to accept, non-zero to reject
 
@@ -3838,9 +4357,16 @@ Procedure.s ListRequester(Title.s, Message.s, List String.s(), ParentWindow.i = 
         DisableWindow(ParentWindow, #True)
       EndIf
       
-      Protected Padding.i = StandardTextGadgetHeight() / 2
-      Protected ButtonH.i = StandardButtonHeight()
-      Protected ButtonW.i = 4 * ButtonH
+      Protected Padding.i = 0.67 * StandardTextGadgetHeight()
+      
+      Protected OKButton.i, CancelButton.i
+      OKButton = ButtonGadget(#PB_Any, 0, 0, 10, 10, _KSL_ListRequesterOKLabel)
+      Protected ButtonH.i = GadgetRequiredHeight(OKButton)
+      Protected ButtonW.i = MaxI(4 * ButtonH, GadgetRequiredWidth(OKButton))
+      SetGadgetText(OKButton, _KSL_ListRequesterCancelLabel)
+      ButtonW = MaxI(ButtonW, GadgetRequiredWidth(OKButton))
+      FreeGadget(OKButton)
+      
       Protected ContentsW.i = (Padding + ButtonW + 2*Padding + ButtonW + Padding)
       Protected LabelH.i = StandardTextGadgetHeight()
       Protected Label.i = TextGadget(#PB_Any, Padding, Padding, ContentsW, LabelH, Message, #PB_Text_Center)
@@ -3871,8 +4397,8 @@ Procedure.s ListRequester(Title.s, Message.s, List String.s(), ParentWindow.i = 
       SetGadgetState(ListView, 0)
       y + GadgetHeight(ListView) + Padding
       
-      Protected OKButton.i = ButtonGadget(#PB_Any, Padding + (ContentsW/2) - (ButtonW + Padding), y, ButtonW, ButtonH, "OK", #PB_Button_Default)
-      Protected CancelButton.i = ButtonGadget(#PB_Any, Padding + (ContentsW/2) + (Padding), y, ButtonW, ButtonH, "Cancel")
+      OKButton     = ButtonGadget(#PB_Any, Padding + (ContentsW/2) - (ButtonW + Padding), y, ButtonW, ButtonH, _KSL_ListRequesterOKLabel, #PB_Button_Default)
+      CancelButton = ButtonGadget(#PB_Any, Padding + (ContentsW/2) + (Padding), y, ButtonW, ButtonH, _KSL_ListRequesterCancelLabel)
       y + ButtonH + Padding
       
       AddKeyboardShortcut(_ListRequesterWindow, #PB_Shortcut_Return, 0)
@@ -4167,6 +4693,20 @@ Procedure SetGadgetWndProc(Gadget.i, *Proc, StorePrevProcAsUserData.i = #True)
 EndProcedure
 Procedure SetWindowWndProc(Window.i, *Proc, StorePrevProcAsUserData.i = #True)
   _SetWndProc(WindowID(Window), *Proc, StorePrevProcAsUserData)
+EndProcedure
+
+Procedure.i GetHWNDBorderSize(hWnd.i)
+  Protected Result.i = 0
+  If (hWnd)
+    Protected WR.RECT, CR.RECT
+    If (GetWindowRect_(hWnd, @WR) And GetClientRect_(hWnd, @CR))
+      Result = ((WR\right - WR\left) - (CR\right - CR\left)) / 2
+      If (Result < 0)
+        Result = 0
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
 EndProcedure
 
 Procedure.i _StringGadgetWithCtrlBackspaceEntire(hWnd.i, uMsg.i, wParam.i, lParam.i)
