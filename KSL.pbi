@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260331
+#KSL_Version = 20260407
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -333,8 +333,29 @@ CompilerEndIf
 #NBSP  = $A0
 #NBSP$ = Chr(#NBSP)
 
+#DegreeSign  = $B0
+#DegreeSign$ = Chr(#DegreeSign)
+
 #Euro  = $20AC
-#Euro$ = Chr($20AC)
+#Euro$ = Chr(#Euro)
+
+#UpwardsWhiteArrow         = $21E7
+#UpwardsWhiteArrow$        = Chr(#UpwardsWhiteArrow)
+#UpwardsWhiteArrowFromBar  = $21EA
+#UpwardsWhiteArrowFromBar$ = Chr(#UpwardsWhiteArrowFromBar)
+#UpArrowhead               = $2303
+#UpArrowhead$              = Chr(#UpArrowhead)
+#PlaceOfInterestSign       = $2318
+#PlaceOfInterestSign$      = Chr(#PlaceOfInterestSign)
+#OptionKey                 = $2325
+#OptionKey$                = Chr(#OptionKey)
+
+#MacShift$    = #UpwardsWhiteArrow$
+#MacCapsLock$ = #UpwardsWhiteArrowFromBar$
+#MacControl$  = #UpArrowhead$
+#MacCommand$  = #PlaceOfInterestSign$
+#MacOption$   = #OptionKey$
+;#MacAlt$      = #OptionKey$
 
 #BOM   = $FEFF
 #BOM$  = Chr(#BOM)
@@ -373,6 +394,12 @@ CompilerEndIf
 #CurrentDirectorySymbol = "."
 #ParentDirectorySymbol  = ".."
 #HomeDirectorySymbol    = "~"
+
+CompilerIf (#PB_Shortcut_Command = #PB_Shortcut_Control)
+  #CommandIsControl = #True
+CompilerElse
+  #CommandIsControl = #False
+CompilerEndIf
 
 #PB_Shortcut_Equal  = WindowsElse(#VK_OEM_PLUS,  '=')
 #PB_Shortcut_Hyphen = WindowsElse(#VK_OEM_MINUS, '-')
@@ -2419,6 +2446,8 @@ Enumeration ; Flags for ScanFolder()
   #KSL_ScanFolder_PreserveList      = $080
   #KSL_ScanFolder_ReturnCount       = $100
   ;
+  #KSL_ScanFolder_FoldersOnly       = #KSL_ScanFolder_IncludeFolders | #KSL_ScanFolder_ExcludeFiles
+  ;
   #KSL_ScanFolder_Relative       = 0
   #KSL_ScanFolder_Nonrecursive   = 0
   #KSL_ScanFolder_IncludeHidden  = 0
@@ -2850,6 +2879,15 @@ EndProcedure
 
 ;- ----- Gadget Functions -----
 
+#KSL_GadgetType_Minimum = 1
+CompilerIf (PBGTE(610))
+  #KSL_GadgetType_Maximum = 35 ; WebView added
+CompilerElseIf (PBGTE(530))
+  #KSL_GadgetType_Maximum = 34 ; OpenGL added
+CompilerElse
+  #KSL_GadgetType_Maximum = 33 ; Canvas last added
+CompilerEndIf
+
 Macro MoveGadget(_Gadget, _x, _y)
   ResizeGadget((_Gadget), (_x), (_y), #PB_Ignore, #PB_Ignore)
 EndMacro
@@ -2899,11 +2937,34 @@ Macro SetCanvasCursor(_CanvasGadget, _Cursor)
   SetGadgetAttribute((_CanvasGadget), #PB_Canvas_Cursor, (_Cursor))
 EndMacro
 
+Macro GetScrollAreaX(_ScrollAreaGadget)
+  (GetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_X))
+EndMacro
+Macro GetScrollAreaY(_ScrollAreaGadget)
+  (GetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_Y))
+EndMacro
+Macro GetScrollAreaInnerWidth(_ScrollAreaGadget)
+  (GetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_InnerWidth))
+EndMacro
+Macro GetScrollAreaInnerHeight(_ScrollAreaGadget)
+  (GetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_InnerHeight))
+EndMacro
+Macro SetScrollAreaInnerWidth(_ScrollAreaGadget, _Width)
+  SetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_InnerWidth, (_Width))
+EndMacro
+Macro SetScrollAreaInnerHeight(_ScrollAreaGadget, _Height)
+  SetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_InnerHeight, (_Height))
+EndMacro
+
+; Per PB 6.21 Help "not supported on Linux GTK" !
 Macro GetPanelWidth(_PanelGadget)
-  (GetGadgetAttribute(((_PanelGadget), #PB_Panel_ItemWidth)))
+  (GetGadgetAttribute((_PanelGadget), #PB_Panel_ItemWidth))
 EndMacro
 Macro GetPanelHeight(_PanelGadget)
-  (GetGadgetAttribute(((_PanelGadget), #PB_Panel_ItemHeight)))
+  (GetGadgetAttribute((_PanelGadget), #PB_Panel_ItemHeight))
+EndMacro
+Macro GetPanelTabHeight(_PanelGadget)
+  (GetGadgetAttribute((_PanelGadget), #PB_Panel_TabHeight))
 EndMacro
 
 Macro FinishOptionGadgetGroup()
@@ -3126,10 +3187,14 @@ Procedure.i EstimateGadgetRequiredWidth(Gadget.i)
   Protected i.i, N.i
   Protected DummyGadget.i = #Null
   Select (GadgetType(Gadget))
-    Case #PB_GadgetType_String, #PB_GadgetType_Frame
+    Case #PB_GadgetType_String
       DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, GetGadgetText(Gadget), #PB_Text_Border)
       Result = GadgetRequiredWidth(DummyGadget) + GadgetRequiredHeight(DummyGadget)
-    Case #PB_GadgetType_ComboBox
+      Result = MaxI(Result, 1 * StandardStringGadgetHeight())
+    Case #PB_GadgetType_Frame
+      DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, GetGadgetText(Gadget), #PB_Text_Border)
+      Result = GadgetRequiredWidth(DummyGadget) + GadgetRequiredHeight(DummyGadget)
+    Case #PB_GadgetType_ComboBox, #PB_GadgetType_ListView
       Result = 2 * StandardComboBoxHeight()
       DummyGadget = TextGadget(#PB_Any, 0, 0, 100, 20, "", #PB_Text_Border)
       N = CountGadgetItems(Gadget)
@@ -3152,6 +3217,13 @@ CompilerEndIf
 ;-
 
 ;- ----- Window/Desktop Functions -----
+
+; There is no #PB_Menu_FirstCustomValue...
+;   AddKeyboardShortcut() implies a max of 64000
+;   MenuItem()            implies a max of 65535
+CompilerIf (Not Defined(KSL_MenuItem_FirstCustomValue, #PB_Constant))
+  #KSL_MenuItem_FirstCustomValue = 48000
+CompilerEndIf
 
 CompilerIf (#True)
   #PB_Window_AllSizeGadgets = #PB_Window_MinimizeGadget | #PB_Window_MaximizeGadget | #PB_Window_SizeGadget
@@ -3179,6 +3251,23 @@ Macro WaitCloseWindow(_Window = #PB_Any)
   Repeat
   Until ((WaitWindowEvent() = #PB_Event_CloseWindow) And (((_Window) = #PB_Any) Or (EventWindow() = (_Window))))
 EndMacro
+
+CompilerIf (#PB_Compiler_OS = #PB_OS_Windows)
+  Procedure.i GetWindowMenuHeight(Window.i, Menu.i)
+    Protected ItemRect.RECT, TotalRect.RECT
+    Protected N.i = GetMenuItemCount_(MenuID(Menu))
+    Protected i.i
+    For i = 0 To N-1
+      GetMenuItemRect_(WindowID(Window), MenuID(Menu), i, @ItemRect)
+      UnionRect_(@TotalRect, @TotalRect, @ItemRect)
+    Next i
+    ProcedureReturn (TotalRect\bottom - TotalRect\top + 1) ; is +1 correct ? matches MenuHeight() for one row...
+  EndProcedure
+CompilerElse
+  Macro GetWindowMenuHeight(_Window, _Menu)
+    MenuHeight()
+  EndMacro
+CompilerEndIf
 
 Procedure.i CountDesktops()
   ProcedureReturn (ExamineDesktops())
@@ -3431,6 +3520,17 @@ Procedure.i RegisterCustomEventType(MinimumEventTypeValue.i = #PB_Ignore)
   ProcedureReturn (EventTypeValue)
 EndProcedure
 
+Procedure.i RegisterCustomMenuItem(MinimumMenuItemValue.i = #PB_Ignore)
+  Static MenuItemValue.i = (#KSL_MenuItem_FirstCustomValue - 1)
+  MenuItemValue + 1
+  If (MinimumMenuItemValue > #KSL_MenuItem_FirstCustomValue)
+    If (MenuItemValue < MinimumMenuItemValue)
+      MenuItemValue = MinimumMenuItemValue
+    EndIf
+  EndIf
+  ProcedureReturn (MenuItemValue)
+EndProcedure
+
 ;-
 
 ;- ----- Custom Requesters -----
@@ -3463,9 +3563,9 @@ Procedure.s ListRequester(Title.s, Message.s, List String.s(), ParentWindow.i = 
         DisableWindow(ParentWindow, #True)
       EndIf
       
-      Protected Padding.i = StandardTextGadgetHeight()
+      Protected Padding.i = StandardTextGadgetHeight() / 2
       Protected ButtonH.i = StandardButtonHeight()
-      Protected ButtonW.i = 6 * ButtonH
+      Protected ButtonW.i = 4 * ButtonH
       Protected ContentsW.i = (Padding + ButtonW + 2*Padding + ButtonW + Padding)
       Protected LabelH.i = StandardTextGadgetHeight()
       Protected Label.i = TextGadget(#PB_Any, Padding, Padding, ContentsW, LabelH, Message, #PB_Text_Center)
@@ -3778,6 +3878,22 @@ Structure COMBOBOXINFO
 EndStructure
 CompilerEndIf
 
+Procedure _SetWndProc(hWnd.i, *Proc, StorePrevProcAsUserData.i)
+  If (hWnd And *Proc)
+    If (StorePrevProcAsUserData)
+      SetWindowLongPtr_(hWnd, #GWLP_USERDATA, GetWindowLongPtr_(hWnd, #GWLP_WNDPROC))
+    EndIf
+    SetWindowLongPtr_(hWnd, #GWLP_WNDPROC, *Proc)
+  EndIf
+EndProcedure
+
+Procedure SetGadgetWndProc(Gadget.i, *Proc, StorePrevProcAsUserData.i = #True)
+  _SetWndProc(GadgetID(Gadget), *Proc, StorePrevProcAsUserData)
+EndProcedure
+Procedure SetWindowWndProc(Window.i, *Proc, StorePrevProcAsUserData.i = #True)
+  _SetWndProc(WindowID(Window), *Proc, StorePrevProcAsUserData)
+EndProcedure
+
 Procedure.i _StringGadgetWithCtrlBackspaceEntire(hWnd.i, uMsg.i, wParam.i, lParam.i)
   If ((uMsg = #WM_CHAR) And (wParam = #DEL))
     ProcedureReturn (SendMessage_(hWnd, #WM_SETTEXT, #Null, #Null$))
@@ -3838,11 +3954,10 @@ Procedure.i StringGadgetWithCtrlBackspace(Gadget.i, x.i, y.i, Width.i, Height.i,
     If (Flags & #PB_String_ReadOnly)
       ; leave wndproc as-is
     Else
-      SetWindowLongPtr_(GadgetID(Gadget), #GWLP_USERDATA, GetWindowLongPtr_(GadgetID(Gadget), #GWLP_WNDPROC))
       If (Flags & #PB_String_Password)
-        SetWindowLongPtr_(GadgetID(Gadget), #GWLP_WNDPROC, @_StringGadgetWithCtrlBackspaceEntire())
+        SetGadgetWndProc(Gadget, @_StringGadgetWithCtrlBackspaceEntire())
       Else
-        SetWindowLongPtr_(GadgetID(Gadget), #GWLP_WNDPROC, @_StringGadgetWithCtrlBackspace())
+        SetGadgetWndProc(Gadget, @_StringGadgetWithCtrlBackspace())
       EndIf
     EndIf
   EndIf
@@ -3860,8 +3975,7 @@ Procedure.i ComboBoxGadgetWithCtrlBackspace(Gadget.i, x.i, y.i, Width.i, Height.
       CBI\cbSize = SizeOf(COMBOBOXINFO)
       If (GetComboBoxInfo_(GadgetID(Gadget), @CBI))
         If (CBI\hwndEdit)
-          SetWindowLongPtr_(CBI\hwndEdit, #GWLP_USERDATA, GetWindowLongPtr_(CBI\hwndEdit, #GWLP_WNDPROC))
-          SetWindowLongPtr_(CBI\hwndEdit, #GWLP_WNDPROC, @_StringGadgetWithCtrlBackspace())
+          _SetWndProc(CBI\hwndEdit, @_StringGadgetWithCtrlBackspace(), #True)
         EndIf
       EndIf
     EndIf
