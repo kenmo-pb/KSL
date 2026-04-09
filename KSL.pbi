@@ -2987,7 +2987,7 @@ Macro SetScrollAreaInnerHeight(_ScrollAreaGadget, _Height)
   SetGadgetAttribute((_ScrollAreaGadget), #PB_ScrollArea_InnerHeight, (_Height))
 EndMacro
 
-CompilerIf (#GTK2 Or #GTK3)
+CompilerIf ((#GTK2 Or #GTK3) And (#False))
   ; Per PB 6.21 Help, PanelGadget attributes "not supported on Linux GTK" !
 CompilerElse
   Macro GetPanelWidth(_PanelGadget)
@@ -3333,7 +3333,7 @@ EndMacro
 Macro StandardComboBoxHeight(_ComboBoxFlags = #Null)
   (StandardGadgetHeight(#PB_GadgetType_ComboBox, (_ComboBoxFlags)))
 EndMacro
-Macro StandardOptionHeight()
+Macro StandardOptionGadgetHeight()
   (StandardGadgetHeight(#PB_GadgetType_Option))
 EndMacro
 Macro StandardScrollbarSize()
@@ -3726,6 +3726,7 @@ Procedure.i GadgetRequiredWidth(Gadget.i)
       If (Result < GadgetRequiredHeight(Gadget))
         Result = GadgetRequiredHeight(Gadget)
       EndIf
+      OnLinux(Result = Result + 4)
     Case #PB_GadgetType_String
       Result = _PBGadgetRequiredWidth(Gadget)
       If (Result < GadgetRequiredHeight(Gadget))
