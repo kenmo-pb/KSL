@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260410
+#KSL_Version = 20260413
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -462,6 +462,21 @@ Structure UnicodeArray
 EndStructure
 Structure WordArray
   w.w[0]
+EndStructure
+
+Structure AnyArray
+  StructureUnion
+    a.a[0]
+    b.b[0]
+    c.c[0]
+    d.d[0]
+    f.f[0]
+    i.i[0]
+    l.l[0]
+    q.q[0]
+    u.u[0]
+    w.w[0]
+  EndStructureUnion
 EndStructure
 
 ;-
@@ -4732,7 +4747,7 @@ CompilerIf (#KSL_IncludeInstanceFunctions)
 #_KSL_InstanceMethod_WindowsMutex = $01
 #_KSL_InstanceMethod_LinuxPIDFile = $02
 #_KSL_InstanceMethod_UseMapFile   = $10
-#_KSL_InstanceMethod_UseCopyData  = $20
+;#_KSL_InstanceMethod_UseCopyData  = $20 ; not yet implemented
 
 #_KSL_InstanceMethod = WLMO(#_KSL_InstanceMethod_WindowsMutex | #_KSL_InstanceMethod_UseMapFile, #_KSL_InstanceMethod_LinuxPIDFile | #_KSL_InstanceMethod_UseMapFile, #_KSL_InstanceMethod_None, #_KSL_InstanceMethod_None)
 
@@ -4800,6 +4815,8 @@ Procedure _KSL_ReadInstanceMapFile()
 EndProcedure
 CompilerEndIf
 
+CompilerIf (#GTK2)
+
 CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
 Procedure.i _KSL_InstanceWindowCallback(hWnd.i, uMsg.i, wParam.i, lParam.i)
   If (uMsg = _KSL_RegisteredMessage)
@@ -4810,6 +4827,51 @@ Procedure.i _KSL_InstanceWindowCallback(hWnd.i, uMsg.i, wParam.i, lParam.i)
   ProcedureReturn (#PB_ProcessPureBasicEvents)
 EndProcedure
 CompilerEndIf
+
+CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
+
+CompilerIf (Not Defined(XClientMessageEvent, #PB_Structure))
+; Copied directly from PB IDE LinuxMisc.pb
+Structure XClientMessageEvent
+  type.l        ; int
+  CompilerIf #PB_Compiler_Processor = #PB_Processor_x64
+    alignment1.l
+  CompilerEndIf
+  serial.i      ; unsigned long    /* # of last request processed by server */
+  send_event.l  ; Bool (=int)    /* true if this came from a SendEvent request */
+  CompilerIf #PB_Compiler_Processor = #PB_Processor_x64
+    alignment2.l
+  CompilerEndIf
+  *display      ; pointer  /* Display the event was read from */
+  window.i      ; Window (= pointer)
+  message_type.i; Atom (= pointer)
+  format.l      ; int
+  CompilerIf #PB_Compiler_Processor = #PB_Processor_x64
+    alignment3.l
+  CompilerEndIf
+  StructureUnion
+    b.b[20]      ; char
+    s.w[10]      ; short
+    l.i[5]       ; long is 64bit on Linux64!
+  EndStructureUnion
+EndStructure
+CompilerEndIf
+
+ProcedureC.i _KSL_InstanceAtomCallback(*XEvent.XClientMessageEvent, *Event, user_data.i)
+  Static LastSender.l = 0
+  If (#True)
+    If (*XEvent\l[0] <> LastSender)
+      _KSL_ReadInstanceMapFile()
+      LastSender = *XEvent\l[0]
+    EndIf
+    ProcedureReturn (#GDK_FILTER_REMOVE)
+  Else
+    ProcedureReturn (#GDK_FILTER_CONTINUE)
+  EndIf
+EndProcedure
+CompilerEndIf
+
+CompilerEndIf ; #GTK2
 
 Procedure _KSL_InitInstance()
   CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
@@ -4828,8 +4890,25 @@ Procedure _KSL_InitInstance()
         EndIf
       EndIf
     EndIf
+    
   CompilerElseIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
-    ; ...
+    _KSL_IsAlreadyRunning = #False
+    Protected OldPID.i = ReadFileInteger(_KSL_InstancePIDFile)
+    If (OldPID > 0)
+      If (kill_(OldPID, 0) = 0) ; process exists
+        If (#True) ; check that it's not an old PID from a previous system uptime? GetModifiedDate() vs "uptime -s" ?
+          _KSL_IsAlreadyRunning = #True
+        EndIf
+      EndIf
+    EndIf
+    If (Not _KSL_IsAlreadyRunning)
+      DeleteFile(_KSL_InstancePIDFile)
+      WriteFileInteger(_KSL_InstancePIDFile, getpid_())
+      CompilerIf (#GTK2)
+        gdk_add_client_message_filter_(gdk_atom_intern_(_KSL_MutexString, #False), @_KSL_InstanceAtomCallback(), #Null)
+      CompilerEndIf
+    EndIf
+    
   CompilerEndIf
 EndProcedure
 
@@ -4852,10 +4931,19 @@ Procedure SendMapToMainInstance(Map StringMap.s())
           Next
           CloseFile(FN)
           
+          ; Broadcast to all processes...
           CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
             PostMessage_(#HWND_BROADCAST, _KSL_RegisteredMessage, #Null, #Null)
           CompilerElseIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
-            ; ...
+            CompilerIf (#GTK2)
+              Protected Event.GdkEventClient
+              Event\type         = #GDK_CLIENT_EVENT
+              Event\send_event   = #True
+              Event\message_type = gdk_atom_intern_(_KSL_MutexString, 0)
+              Event\data_format  = 32
+              Event\l[0]         = getpid_()
+              gdk_event_send_clientmessage_toall_(@Event)
+            CompilerEndIf
           CompilerEndIf
           
           Timeout = ElapsedMilliseconds() + #_KSL_InstanceTimeoutMS
@@ -4891,7 +4979,7 @@ Procedure QuitInstance()
       _KSL_Mutex = #Null
     EndIf
   CompilerElseIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
-    ; ...
+    DeleteFile(_KSL_InstancePIDFile)
   CompilerEndIf
 EndProcedure
 
