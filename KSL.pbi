@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260408
+#KSL_Version = 20260410
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -51,6 +51,10 @@ CompilerIf (Not Defined(KSL_IncludeNetworkFunctions, #PB_Constant))
   CompilerElse
     #KSL_IncludeNetworkFunctions = #False
   CompilerEndIf
+CompilerEndIf
+
+CompilerIf (Not Defined(KSL_IncludeInstanceFunctions, #PB_Constant))
+  #KSL_IncludeInstanceFunctions = #False
 CompilerEndIf
 
 ;-
@@ -1102,6 +1106,16 @@ Procedure.s Plural(N.i, Singular.s, Multiple.s = "")
   EndIf
 EndProcedure
 
+Procedure.s GetListString(List StrList.s(), Position.i)
+  Protected Result.s = ""
+  PushListPosition(StrList())
+  If (SelectElement(StrList(), Position))
+    Result = StrList()
+  EndIf
+  PopListPosition(StrList())
+  ProcedureReturn (Result)
+EndProcedure
+
 Procedure.s RandomString(List StrList.s())
   Protected Result.s = ""
   PushListPosition(StrList())
@@ -1371,6 +1385,19 @@ Procedure.i SplitStringToList(String.s, List StrList.s(), Delimiter.s, ExcludeEm
     Result = ListSize(StrList())
   EndIf
   ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i StringListToArray(List StrList.s(), Array StrArray.s(1))
+  Protected N.i = ListSize(StrList())
+  If (N > 0)
+    Dim StrArray(N-1)
+    ForEach (StrList())
+      StrArray(ListIndex(StrList())) = StrList()
+    Next
+  Else
+    Dim StrArray(0)
+  EndIf
+  ProcedureReturn (N)
 EndProcedure
 
 Prototype KSL_IterateStringCallback(String.s, UserData.i)
@@ -1666,6 +1693,47 @@ Procedure.s URLParamEncoder(Text.s)
     *C + SizeOf(CHARACTER)
   Wend
   ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s ProgramParametersString()
+  Protected Result.s = ""
+  Protected N.i = CountProgramParameters()
+  If (N > 0)
+    Protected i.i
+    For i = 0 To (N-1)
+      If (i > 0)
+        Result + " "
+      EndIf
+      Result + QuoteIfSpaces(ProgramParameter(i), #True)
+    Next i
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i ProgramParametersToList(List StrList.s())
+  ClearList(StrList())
+  Protected N.i = CountProgramParameters()
+  If (N > 0)
+    Protected i.i
+    For i = 0 To (N-1)
+      AddString(StrList(), ProgramParameter(i))
+    Next i
+  EndIf
+  ProcedureReturn (N)
+EndProcedure
+
+Procedure.i ProgramParametersToArray(Array StrArray.s(1))
+  Protected N.i = CountProgramParameters()
+  If (N > 0)
+    Dim StrArray.s(N-1)
+    Protected i.i
+    For i = 0 To (N-1)
+      StrArray(i) = ProgramParameter(i)
+    Next i
+  Else
+    Dim StrArray.s(0)
+  EndIf
+  ProcedureReturn (N)
 EndProcedure
 
 ;-
@@ -4651,6 +4719,183 @@ Procedure.i InitNetworkVerify(TimeoutMS.i = MinutesToMilliseconds(3))
   
   ProcedureReturn (Result)
 EndProcedure
+
+CompilerEndIf
+
+;-
+
+;- ----- Instance Functions -----
+
+CompilerIf (#KSL_IncludeInstanceFunctions)
+
+#_KSL_InstanceMethod_None         = $00
+#_KSL_InstanceMethod_WindowsMutex = $01
+#_KSL_InstanceMethod_LinuxPIDFile = $02
+#_KSL_InstanceMethod_UseMapFile   = $10
+#_KSL_InstanceMethod_UseCopyData  = $20
+
+#_KSL_InstanceMethod = WLMO(#_KSL_InstanceMethod_WindowsMutex | #_KSL_InstanceMethod_UseMapFile, #_KSL_InstanceMethod_LinuxPIDFile | #_KSL_InstanceMethod_UseMapFile, #_KSL_InstanceMethod_None, #_KSL_InstanceMethod_None)
+
+#_KSL_InstanceTimeoutMS = 1000
+
+Global _KSL_IsAlreadyRunning.i = #False
+Global KSL_Event_ReceivedInstanceMap.i        = RegisterCustomEvent()
+Global KSL_Event_ReceivedInstanceParameters.i = RegisterCustomEvent()
+
+Global NewMap  KSL_InstanceMap.s()
+Global NewList KSL_InstanceParameter.s()
+
+CompilerIf (#_KSL_InstanceMethod <> #_KSL_InstanceMethod_None)
+  UseMD5Fingerprint()
+  Global _KSL_MutexString.s = StringFingerprint("KSL:" + ProgramFilename(), #PB_Cipher_MD5)
+CompilerEndIf
+
+CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
+  Global _KSL_Mutex.i             = #Null
+  Global _KSL_RegisteredMessage.i = #Null
+  Global _KSL_InstanceWindow.i    = #Null
+CompilerElseIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
+  Global _KSL_InstancePIDFile.s   = GetTemporaryDirectory() + _KSL_MutexString + ".pid"
+CompilerEndIf
+
+CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_UseMapFile)
+  Global _KSL_InstanceMapFile.s = GetTemporaryDirectory() + _KSL_MutexString + ".map"
+CompilerEndIf
+
+Procedure.i InstanceAlreadyRunning()
+  ProcedureReturn (_KSL_IsAlreadyRunning)
+EndProcedure
+
+CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_UseMapFile)
+Procedure _KSL_ReadInstanceMapFile()
+  ClearMap(KSL_InstanceMap())
+  ClearList(KSL_InstanceParameter())
+  If (_KSL_InstanceMapFile)
+    Protected FN.i = ReadFile(#PB_Any, _KSL_InstanceMapFile)
+    If (FN)
+      While (Not Eof(FN))
+        Protected Text.s = ReadString(FN)
+        Protected i.i = FindString(Text, "=")
+        If (i >= 2)
+          KSL_InstanceMap(Left(Text, i-1)) = Mid(Text, i+1)
+        EndIf
+      Wend
+      CloseFile(FN)
+      DeleteFile(_KSL_InstanceMapFile)
+      PostEvent(KSL_Event_ReceivedInstanceMap)
+      Protected N.i = 0
+      If (FindMapElement(KSL_InstanceMap(), "NumParameters"))
+        N = Val(KSL_InstanceMap())
+        If (N > 0)
+          For i = 0 To (N-1)
+            AddString(KSL_InstanceParameter(), KSL_InstanceMap("Parameter" + Str(i)))
+          Next i
+        EndIf
+        If (N >= 0)
+          PostEvent(KSL_Event_ReceivedInstanceParameters)
+        EndIf
+      EndIf
+    EndIf
+  EndIf
+EndProcedure
+CompilerEndIf
+
+CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
+Procedure.i _KSL_InstanceWindowCallback(hWnd.i, uMsg.i, wParam.i, lParam.i)
+  If (uMsg = _KSL_RegisteredMessage)
+    CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_UseMapFile)
+      _KSL_ReadInstanceMapFile()
+    CompilerEndIf
+  EndIf
+  ProcedureReturn (#PB_ProcessPureBasicEvents)
+EndProcedure
+CompilerEndIf
+
+Procedure _KSL_InitInstance()
+  CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
+    _KSL_RegisteredMessage = RegisterWindowMessage_(@_KSL_MutexString)
+    
+    _KSL_Mutex = CreateMutex_(#Null, #False, @_KSL_MutexString)
+    ; "If the mutex is a named mutex and the object existed before this function call, the return value is a handle to the existing object, and the GetLastError function returns ERROR_ALREADY_EXISTS."
+    If ((Not _KSL_Mutex) Or (GetLastError_() = #ERROR_ALREADY_EXISTS))
+      _KSL_IsAlreadyRunning = #True
+    Else
+      _KSL_IsAlreadyRunning = #False
+      If (Not _KSL_InstanceWindow)
+        _KSL_InstanceWindow = OpenWindow(#PB_Any, 0, 0, 100, 100, "", #PB_Window_BorderLess | #PB_Window_NoGadgets | #PB_Window_NoActivate | #PB_Window_Invisible)
+        If (_KSL_InstanceWindow)
+          SetWindowCallback(@_KSL_InstanceWindowCallback(), _KSL_InstanceWindow)
+        EndIf
+      EndIf
+    EndIf
+  CompilerElseIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
+    ; ...
+  CompilerEndIf
+EndProcedure
+
+Procedure SendMapToMainInstance(Map StringMap.s())
+  If (_KSL_IsAlreadyRunning)
+    CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_UseMapFile)
+      Protected Timeout.i
+      Timeout = ElapsedMilliseconds() + #_KSL_InstanceTimeoutMS
+      While (ElapsedMilliseconds() < Timeout)
+        If (Not FileExists(_KSL_InstanceMapFile))
+          Break
+        EndIf
+        Delay(50)
+      Wend
+      If (Not FileExists(_KSL_InstanceMapFile))
+        Protected FN.i = CreateFile(#PB_Any, _KSL_InstanceMapFile)
+        If (FN)
+          ForEach (StringMap())
+            WriteString(FN, #LF$ + MapKey(StringMap()) + "=" + StringMap())
+          Next
+          CloseFile(FN)
+          
+          CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
+            PostMessage_(#HWND_BROADCAST, _KSL_RegisteredMessage, #Null, #Null)
+          CompilerElseIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
+            ; ...
+          CompilerEndIf
+          
+          Timeout = ElapsedMilliseconds() + #_KSL_InstanceTimeoutMS
+          While (ElapsedMilliseconds() < Timeout)
+            If (Not FileExists(_KSL_InstanceMapFile))
+              ProcedureReturn
+            EndIf
+            Delay(50)
+          Wend
+          DeleteFile(_KSL_InstanceMapFile)
+        EndIf
+      EndIf
+    CompilerEndIf
+  EndIf
+EndProcedure
+
+Procedure SendProgramParametersToMainInstance()
+  NewMap ParameterMap.s()
+  Protected N.i = CountProgramParameters()
+  ParameterMap("NumParameters") = Str(N)
+  Protected i.i
+  For i = 0 To (N-1)
+    ParameterMap("Parameter" + Str(i)) = ProgramParameter(i)
+  Next i
+  SendMapToMainInstance(ParameterMap())
+EndProcedure
+
+Procedure QuitInstance()
+  CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
+    If (_KSL_Mutex)
+      ; "The system closes the handle automatically when the process terminates. The mutex object is destroyed when its last handle has been closed."
+      CloseHandle_(_KSL_Mutex)
+      _KSL_Mutex = #Null
+    EndIf
+  CompilerElseIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
+    ; ...
+  CompilerEndIf
+EndProcedure
+
+_KSL_InitInstance()
 
 CompilerEndIf
 
