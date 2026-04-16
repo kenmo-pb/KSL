@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260413
+#KSL_Version = 20260415
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -117,6 +117,10 @@ CompilerElse
     ;
   EndMacro
 CompilerEndIf
+
+Macro OnAllOS(_Expression)
+  _Expression
+EndMacro
 
 #OSName$ = WLMO("Windows", "Linux", "Mac", "Other")
 
@@ -828,12 +832,16 @@ Macro ClearAndFreeMap(_Map)
   FreeMap(_Map)
 EndMacro
 
+Macro CurrentElement(_List)
+  (@_List)
+EndMacro
+
 CompilerIf (#True)
 
 Procedure.i PreviousElementPtr(*ListElementPtr)
   Protected *Result = #Null
   If (*ListElementPtr)
-    *Result = PeekI(*ListElementPtr - SizeOf(INTEGER))
+    *Result = PeekI(*ListElementPtr - 1 * SizeOf(INTEGER))
     If (*Result)
       *Result + 2 * SizeOf(INTEGER)
     EndIf
@@ -899,6 +907,7 @@ Macro CharsToBytes(_Chars)
 EndMacro
 
 CompilerIf (PBGTE(640)) ; PB 6.40 dropped #PB_String_InPlace because it has side effects, strings are now passed "upward" by-reference!
+  ; https://www.purebasic.fr/english/viewtopic.php?p=650813
   CompilerIf (#False) ; Confirm whether this approach actually works for PB 6.40+ string library!
     Procedure _ReplaceStringInPlace(*StringVar.CHARACTER, StringToFind.s, StringToReplace.s, Mode.i)
       Protected N.i = Len(StringToFind)
@@ -938,6 +947,10 @@ CompilerElse
     ReplaceString(_StringVar, _StringToFind, _StringToReplace, (_Mode | #PB_String_InPlace))
   EndMacro
 CompilerEndIf
+
+Macro FindStringNoCase(_String, _StringToFind, _StartPosition = 1)
+  FindString(_String, _StringToFind, (_StartPosition), #PB_String_NoCase)
+EndMacro
 
 Macro AddString(_List, _String)
   AddElement(_List)
@@ -985,6 +998,7 @@ Macro StringByteLengthN(_String, _Format = #InternalStringFormat, _NumNulls = 1)
 EndMacro
 
 CompilerIf (PBGTE(640))
+  ; https://www.purebasic.fr/english/viewtopic.php?t=88238
   Macro UpdateStringLength(_StringVar)
     _StringVar = PeekS(@_StringVar)
   EndMacro
@@ -3104,6 +3118,26 @@ Procedure SelectGadget(Gadget.i)
   SetActiveGadget(Gadget)
 EndProcedure
 
+CompilerIf (#Linux)
+  CompilerIf (Not Defined(gtk_entry_set_alignment, #PB_Procedure))
+    ImportC ""
+      gtk_entry_set_alignment(*entry, xalign.f)
+    EndImport
+  CompilerEndIf
+CompilerEndIf
+
+Procedure CenterStringGadget(Gadget.i)
+  ; https://www.purebasic.fr/english/viewtopic.php?p=642136
+  CompilerIf (#Windows)
+    SetWindowLongPtr_(GadgetID(Gadget), #GWL_STYLE, (GetWindowLongPtr_(GadgetID(Gadget), #GWL_STYLE) & ~#ES_RIGHT) | #ES_CENTER)
+    InvalidateRect_(GadgetID(Gadget), 0, #True)
+  CompilerElseIf (#Linux)
+    gtk_entry_set_alignment(GadgetID(Gadget), 0.5)
+  CompilerElseIf (#Mac)
+    CocoaMessage(0, GadgetID(Gadget), "setAlignment:", #NSCenterTextAlignment)
+  CompilerEndIf
+EndProcedure
+
 Procedure EnsureGadgetListOpen()
   Static DummyWindow.i = #Null
   If (UseGadgetList(0) = 0)
@@ -3114,6 +3148,83 @@ Procedure EnsureGadgetListOpen()
       UseGadgetList(WindowID(DummyWindow))
     EndIf
   EndIf
+EndProcedure
+
+CompilerIf (Not Defined(PB_Object_EnumerateStart, #PB_Procedure))
+  WindowsElse(Import "", ImportC "")
+    PB_Object_EnumerateStart(Object.i)
+    PB_Object_EnumerateNext(Object.i, *ID.Integer)
+    PB_Object_EnumerateAbort(Object.i)
+    PB_Object_Count(Objects.i)
+    PB_Window_Objects.i
+    CompilerIf (#True)
+      PB_Gadget_GetRootWindow.i(GadgetID.i)
+    CompilerEndIf
+  OnAllOS(EndImport)
+CompilerEndIf
+
+CompilerIf (#Mac)
+  CompilerIf (Not Defined(sdkGadget, #PB_Structure))
+    Structure sdkGadget
+      *gadget
+      *container
+      *vt
+      UserData.i
+      Window.i
+      Type.i
+      Flags.i
+    EndStructure
+  CompilerEndIf
+  
+  CompilerIf (Not Defined(PB_Window_GetID, #PB_Procedure))
+    Import ""
+      PB_Window_GetID(Object.i)
+    EndImport
+  CompilerEndIf
+CompilerEndIf
+
+Declare.i GetBuildWindow()
+Declare.i GetWindowFromWindowID(WindowID.i)
+
+Procedure.i GetWindowFromGadget(Gadget.i)
+  Protected Result.i = -1
+  ; https://www.purebasic.fr/english/viewtopic.php?t=85547
+  
+  CompilerIf (Defined(PB_Gadget_GetRootWindow, #PB_Procedure) And (#True))
+    Result = GetWindowFromWindowID(PB_Gadget_GetRootWindow(GadgetID(Gadget)))
+  
+  CompilerElseIf (#Windows)
+    CompilerIf (#True)
+      Result = GetProp_(GetAncestor_(GadgetID(Gadget), #GA_ROOT), "PB_WINDOWID")
+      If (Result > 0)
+        Result = Result - 1
+      Else
+        Result = -1
+      EndIf
+    CompilerElse
+      Result = GetWindowFromWindowID(GetAncestor_(GadgetID(Gadget), #GA_ROOT))
+    CompilerEndIf
+    
+  CompilerElseIf (#Linux)
+    Result = gtk_widget_get_toplevel_(GadgetID(Gadget))
+    If (Result)
+      result = g_object_get_data_(ID, "pb_id" )
+    Else
+      Result = -1
+    EndIf
+    
+  CompilerElseIf (#Mac)
+    Protected *Gadget.sdkGadget = IsGadget(Gadget)
+    If (*Gadget)
+      CompilerIf (Defined(PB_Window_GetID, #PB_Procedure) And (#True))
+        Result = PB_Window_GetID(WindowID(*Gadget\Window)) ; necessary?
+      CompilerElse
+        Result = *Gadget\Window
+      CompilerEndIf
+    EndIf
+    
+  CompilerEndIf
+  ProcedureReturn (Result)
 EndProcedure
 
 ;-
@@ -4171,6 +4282,28 @@ Procedure.i RegisterCustomMenuItem(MinimumMenuItemValue.i = #PB_Ignore)
   ProcedureReturn (MenuItemValue)
 EndProcedure
 
+Procedure.i GetWindowFromWindowID(WindowID.i)
+  Protected Result.i = -1
+  If (WindowID)
+    PB_Object_EnumerateStart(PB_Window_Objects)
+    If (PB_Window_Objects)
+      Protected Window.i
+      While (PB_Object_EnumerateNext(PB_Window_Objects, @Window))
+        If (WindowID(Window) = WindowID)
+          Result = Window
+          Break
+        EndIf
+      Wend
+      PB_Object_EnumerateAbort(PB_Window_Objects)
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i GetBuildWindow()
+  ProcedureReturn (GetWindowFromWindowID(UseGadgetList(0)))
+EndProcedure
+
 Procedure.i IsMinimized(Window.i)
   ProcedureReturn (Bool(GetWindowState(Window) = #PB_Window_Minimize))
 EndProcedure
@@ -5191,6 +5324,7 @@ EndEnumeration
 
 Procedure.i GetDisplayServer()
   Protected Result.i = #KSL_DisplayServer_Unknown
+  ; https://askubuntu.com/questions/904940/how-can-i-tell-if-i-am-running-wayland
   Select (LCase(GetEnvironmentVariable("XDG_SESSION_TYPE")))
     Case "x11"
       Result = #KSL_DisplayServer_X11
