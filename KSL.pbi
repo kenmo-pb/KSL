@@ -2607,6 +2607,13 @@ Macro RunProgramOutputHidden(_ProgramName, _Parameter = "", _WorkingDirectory = 
   RunProgramOutput(_ProgramName, _Parameter, _WorkingDirectory, (_Flags) | #PB_Program_Hide)
 EndMacro
 
+Procedure.i GetSystemBootTimestamp()
+  CompilerIf (#Linux)
+    ProcedureReturn (ParseDate("%yyyy-%mm-%dd %hh:%ii:%ss", RunProgramOutputHidden("uptime", "-s", "")))
+  CompilerEndIf
+  ProcedureReturn (0) ; unknown boot time
+EndProcedure
+
 CompilerIf (#Windows)
   Macro LaunchFile(_File)
     RunProgram(_File)
