@@ -5148,7 +5148,7 @@ Structure COMBOBOXINFO
   rcButton.RECT
   stateButton.l
   hwndCombo.i
-  hwndEdit.i
+  hwndItem.i
   hwndList.i
 EndStructure
 CompilerEndIf
@@ -5263,8 +5263,8 @@ Procedure.i ComboBoxGadgetWithCtrlBackspace(Gadget.i, x.i, y.i, Width.i, Height.
       Protected CBI.COMBOBOXINFO
       CBI\cbSize = SizeOf(COMBOBOXINFO)
       If (GetComboBoxInfo_(GadgetID(Gadget), @CBI))
-        If (CBI\hwndEdit)
-          _SetWndProc(CBI\hwndEdit, @_StringGadgetWithCtrlBackspace(), #True)
+        If (CBI\hwndItem)
+          _SetWndProc(CBI\hwndItem, @_StringGadgetWithCtrlBackspace(), #True)
         EndIf
       EndIf
     EndIf
