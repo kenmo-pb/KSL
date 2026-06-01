@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260415
+#KSL_Version = 20260531
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -2702,7 +2702,7 @@ EndProcedure
 Procedure ShowInExplorer(FileOrFolder.s)
   If (FileExists(FileOrFolder))
     CompilerIf (#Windows)
-      RunProgram("explorer.exe", "/SELECT," + Quote(FileOrFolder), "")
+      RunProgram("explorer.exe", "/SELECT," + Quote(NormalizePathSeparators(FileOrFolder)), "")
       
     CompilerElseIf (#Linux)
       NewList TryCommand.s()
