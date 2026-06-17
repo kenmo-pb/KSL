@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260531
+#KSL_Version = 20260616
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -3007,7 +3007,7 @@ EndProcedure
 #KSL_GadgetType_Minimum = 1
 CompilerIf (PBGTE(610))
   #KSL_GadgetType_Maximum = 35 ; WebView added
-CompilerElseIf (PBGTE(530))
+CompilerElseIf (#PB_Compiler_Version >= 530);(PBGTE(530)) ; some older versions don't allow this macro in CompilerElseIf ?
   #KSL_GadgetType_Maximum = 34 ; OpenGL added
 CompilerElse
   #KSL_GadgetType_Maximum = 33 ; Canvas last added
@@ -3164,7 +3164,7 @@ CompilerIf (Not Defined(PB_Object_EnumerateStart, #PB_Procedure))
     PB_Object_EnumerateAbort(Object.i)
     PB_Object_Count(Objects.i)
     PB_Window_Objects.i
-    CompilerIf (#True)
+    CompilerIf (Not #Mac)
       PB_Gadget_GetRootWindow.i(GadgetID.i)
     CompilerEndIf
   OnAllOS(EndImport)
