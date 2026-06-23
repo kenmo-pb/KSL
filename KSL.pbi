@@ -45,6 +45,10 @@ CompilerIf (Not Defined(KSL_IncludeDesktopFunctions, #PB_Constant))
   #KSL_IncludeDesktopFunctions = #False
 CompilerEndIf
 
+CompilerIf (Not Defined(KSL_IncludePackerFunctions, #PB_Constant))
+  #KSL_IncludePackerFunctions = #False
+CompilerEndIf
+
 CompilerIf (Not Defined(KSL_IncludeNetworkFunctions, #PB_Constant))
   CompilerIf (Defined(KSL_ExcludeNetworkFunctions, #PB_Constant))
     #KSL_IncludeNetworkFunctions = Bool(Not #KSL_ExcludeNetworkFunctions)
@@ -4794,6 +4798,136 @@ Procedure.i ReadPreferenceRGB(Key.s, DefaultValue.i)
   EndSelect
   ProcedureReturn (Result)
 EndProcedure
+
+;-
+
+;- ----- Packer Functions -----
+
+#KSL_PackerLevel_Minimum = 0
+#KSL_PackerLevel_Maximum = 9
+#KSL_PackerLevel_Default = #KSL_PackerLevel_Maximum
+
+CompilerIf (#KSL_IncludePackerFunctions)
+
+Procedure.i PackerPluginIDByExtension(FileOrExtension.s, DefaultResult.i = 0)
+  Protected Result.i = DefaultResult
+  If (GetExtensionPart(FileOrExtension))
+    FileOrExtension = GetExtensionPart(FileOrExtension)
+  EndIf
+  Select (LCase(FileOrExtension))
+    Case "zip"
+      Result = #PB_PackerPlugin_Zip
+    Case "tar"
+      Result = #PB_PackerPlugin_Tar
+    Case "gz", "taz", "tgz"
+      CompilerIf (Defined(PB_Packer_Gzip, #PB_Constant))
+        Result = #PB_PackerPlugin_Tar | #PB_Packer_Gzip
+      CompilerEndIf
+    Case "bz2", "tb2", "tbz", "tbz2", "tz2"
+      CompilerIf (Defined(PB_Packer_Bzip2, #PB_Constant))
+        Result = #PB_PackerPlugin_Tar | #PB_Packer_Bzip2
+      CompilerEndIf
+  EndSelect
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i _CreatePackFromFolder(Pack.i, Folder.s, Prefix.s)
+  Protected Result.i = #False
+  Protected DN.i = ExamineDirectory(#PB_Any, Folder, "")
+  If (DN)
+    Result = #True
+    If (#True)
+      AddPackDirectory(Pack, Prefix)
+    EndIf
+    While (NextDirectoryEntry(DN))
+      Protected Name.s = DirectoryEntryName(DN)
+      If (DirectoryEntryType(DN) = #PB_DirectoryEntry_Directory)
+        If ((Name <> ".") And (Name <> ".."))
+          Result = _CreatePackFromFolder(Pack, Folder + Name + #PS$, Prefix + Name + "/")
+        EndIf
+      Else ; File
+        If (AddPackFile(Pack, Folder + Name, Prefix + Name))
+          ; OK
+        Else
+          Result = #False
+        EndIf
+      EndIf
+      If ((Not Result) And (#True)) ; fail out if ANY file could not be added?
+        Break
+      EndIf
+    Wend
+    FinishDirectory(DN)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i CreatePackFromFolder(PackFile.s, Folder.s, PluginID.i = #PB_Default, Level.i = #KSL_PackerLevel_Default)
+  Protected Result.i = #False
+  If (PackFile And Folder)
+    Folder = EnsurePathSeparator(Folder)
+    If (FileSize(Folder) = -2)
+      If (PluginID = #PB_Default)
+        PluginID = PackerPluginIDByExtension(PackFile, #PB_PackerPlugin_Zip)
+      EndIf
+      If (PluginID > 0)
+        If (Level = #PB_Default)
+          Level = #KSL_PackerLevel_Default
+        EndIf
+        Protected Pack.i = CreatePack(#PB_Any, PackFile, PluginID, Level)
+        If (Pack)
+          Protected TopLevelName.s = GetTopDirectoryName(Folder)
+          Result = _CreatePackFromFolder(Pack, Folder, TopLevelName + "/")
+          ClosePack(Pack)
+        EndIf
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i CreatePackFromFile(PackFile.s, File.s, PluginID.i = #PB_Default, Level.i = #KSL_PackerLevel_Default)
+  Protected Result.i = #False
+  If (PackFile And File)
+    If (FileSize(File) >= 0)
+      If (PluginID = #PB_Default)
+        PluginID = PackerPluginIDByExtension(PackFile, 0)
+      EndIf
+      If (PluginID > 0)
+        If (Level = #PB_Default)
+          Level = #KSL_PackerLevel_Default
+        EndIf
+        Protected Pack.i = CreatePack(#PB_Any, PackFile, PluginID, Level)
+        If (Pack)
+          If (AddPackFile(Pack, File, GetFilePart(File)))
+            Result = #True
+          EndIf
+          ClosePack(Pack)
+          If (Not Result)
+            DeleteFile(PackFile)
+          EndIf
+        EndIf
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i CreatePackFromApp(PackFile.s, AppPath.s, PluginID.i = #PB_Default, Level.i = #KSL_PackerLevel_Default)
+  Protected Result.i = #False
+  If (PackFile And AppPath)
+    Select (FileSize(AppPath))
+      Case #PB_FileSize_Directory
+        Result = CreatePackFromFolder(PackFile, AppPath, PluginID, Level)
+      Case #PB_FileSize_Missing
+        ;
+      Default
+        Result = CreatePackFromFile(PackFile, AppPath, PluginID, Level)
+    EndSelect
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+CompilerEndIf
 
 ;-
 
