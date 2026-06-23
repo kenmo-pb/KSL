@@ -4799,6 +4799,10 @@ EndProcedure
 
 ;- ----- Network Functions -----
 
+CompilerIf (Not Defined(UserAgent_Default, #PB_Constant))
+  #UserAgent_Default = "Mozilla/5.0 Gecko/41.0 Firefox/41.0" ; as of PB 6.40
+CompilerEndIf
+
 Procedure LaunchURL(URL.s)
   If (URL)
     If (Not FindString(URL, "://"))
@@ -4817,11 +4821,50 @@ EndProcedure
 
 CompilerIf (#KSL_IncludeNetworkFunctions)
 
-Procedure.s ReceiveHTTPString(URL.s, Flags.i = #Null)
+CompilerIf (Not Defined(GetHTTPHeader, #PB_Function))
+Procedure.s GetHTTPHeader(URL.s, Flags.i = #Null, UserAgent.s = "")
   Protected Result.s = ""
   
+  If (UserAgent = "")
+    UserAgent = #UserAgent_Default
+  EndIf
+  NewMap Headers.s()
+  Headers("User-Agent") = UserAgent
+  
+  Protected *Request = HTTPRequest(#PB_HTTP_Get, URL, #Null$, Flags | #PB_HTTP_HeadersOnly, Headers())
+  If (*Request)
+    Result = HTTPInfo(*Request, #PB_HTTP_Headers)
+    FinishHTTP(*Request)
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+CompilerEndIf
+
+Procedure.i GetHTTPContentLength(URL.s, Flags.i = #Null, UserAgent.s = "")
+  Protected Result.i = -1
+  Protected Text.s = GetHTTPHeader(URL, Flags, UserAgent)
+  If (Text)
+    Text = LCase(Text)
+    Text = Trim(Between(Text, "content-length:", #CRLF$))
+    If (Text)
+      Result = Val(Text)
+      If (Result < -1)
+        Result = -1
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.s ReceiveHTTPString(URL.s, Flags.i = #Null, UserAgent.s = "")
+  Protected Result.s = ""
+  
+  If (UserAgent = "")
+    UserAgent = #UserAgent_Default
+  EndIf
+  
   Flags = Flags & (~#PB_HTTP_Asynchronous) ; (don't allow here)
-  Protected *Buffer = ReceiveHTTPMemory(URL, Flags)
+  Protected *Buffer = ReceiveHTTPMemory(URL, Flags, UserAgent)
   If (*Buffer)
     Result = PeekS(*Buffer, MemorySize(*Buffer), #PB_UTF8 | #PB_ByteLength)
     FreeMemory(*Buffer)
