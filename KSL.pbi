@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260616
+#KSL_Version = 20260623
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -2247,28 +2247,50 @@ Procedure.s MakeRelativePath(Path.s, RootDir.s)
   ProcedureReturn (Result)
 EndProcedure
 
-Procedure.i IsMacAppBundle()
+Procedure.i IsExecutableWithinBundle(Executable.s)
   CompilerIf (#Mac)
-    If (EndsWith(GetPathPart(ProgramFilename()), ".app/Contents/MacOS/"))
-      ProcedureReturn (#True)
-    EndIf
-  CompilerEndIf
-  ProcedureReturn (#False)
-EndProcedure
-
-Procedure.s GetAppPath()
-  CompilerIf (#Mac)
-    Protected Path.s = ProgramFilename()
-    If (IsMacAppBundle())
-      While (Right(Path, 5) <> ".app/")
-        Path = GetParentDirectory(Path)
-      Wend
-      Path = RTrim(Path, "/")
-      If (Path = "")
-        Break
+    If (GetFilePart(Executable))
+      If (EndsWith(GetPathPart(Executable), ".app/Contents/MacOS/")) ; is .app case sensitive in the OS ?
+        ProcedureReturn (#True)
       EndIf
     EndIf
-    ProcedureReturn (Path)
+    ProcedureReturn (#False)
+  CompilerElse
+    ProcedureReturn (#False)
+  CompilerEndIf
+EndProcedure
+
+Procedure.s GetAppPathForExecutable(Executable.s)
+  CompilerIf (#Mac) ; will NOT include ending "/" character, despite technically being a directory!
+    If (IsExecutableWithinBundle(Executable))
+      Protected Path.s = Executable
+      While (Right(Path, 5) <> ".app/")
+        Path = GetParentDirectory(Path)
+        If (Path = "")
+          Break
+        EndIf
+      Wend
+      Path = RTrim(Path, "/")
+      ProcedureReturn (Path)
+    Else
+      ProcedureReturn (Executable)
+    EndIf
+  CompilerElse
+    ProcedureReturn (Executable)
+  CompilerEndIf
+EndProcedure
+
+Procedure.i IsProgramWithinBundle()
+  CompilerIf (#Mac)
+    ProcedureReturn (IsExecutableWithinBundle(ProgramFilename()))
+  CompilerElse
+    ProcedureReturn (#False)
+  CompilerEndIf
+EndProcedure
+
+Procedure.s GetProgramAppPath()
+  CompilerIf (#Mac)
+    ProcedureReturn (GetAppPathForExecutable(ProgramFilename()))
   CompilerElse
     ProcedureReturn (ProgramFilename())
   CompilerEndIf
@@ -2428,7 +2450,7 @@ Procedure.s FindResourcePath(ResourceName.s)
       CompilerCase (#PB_OS_Windows)
       CompilerCase (#PB_OS_Linux)
       CompilerCase (#PB_OS_MacOS)
-        If (IsMacAppBundle())
+        If (IsProgramWithinBundle())
           AddString(PathToTry(), EnsurePathSeparator(GetAppPath()) + "Contents/Resources/")
         EndIf
     CompilerEndSelect
