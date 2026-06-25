@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260623
+#KSL_Version = 20260624
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -238,22 +238,34 @@ CompilerIf (Not Defined(PB_FontRequester_Effects, #PB_Constant))
   #PB_FontRequester_Effects = 0
 CompilerEndIf
 
-CompilerIf (PBGTE(600))
-  Procedure.i _KSL_ReturnTrue()
+CompilerIf (Defined(InitNetwork, #PB_Function))
+  CompilerIf (PBGTE(600)) ; exists, but deprecated
+    Procedure.i _InitNetwork()
+      ProcedureReturn (#True)
+    EndProcedure
+    Macro InitNetwork()
+      _InitNetwork()
+    EndMacro
+  CompilerEndIf
+CompilerElse
+  Procedure.i InitNetwork()
     ProcedureReturn (#True)
   EndProcedure
 CompilerEndIf
 
-CompilerIf (PBGTE(600))
-  Macro InitNetwork()
-    _KSL_ReturnTrue()
-  EndMacro
-CompilerEndIf
-
-CompilerIf (PBGTE(610))
-  Macro InitScintilla()
-    _KSL_ReturnTrue()
-  EndMacro
+CompilerIf (Defined(InitScintilla, #PB_Function))
+  CompilerIf (PBGTE(610)) ; exists, but deprecated
+    Procedure.i _InitScintilla(Library.s = "")
+      ProcedureReturn (#True)
+    EndProcedure
+    Macro InitScintilla
+      _InitScintilla
+    EndMacro
+  CompilerEndIf
+CompilerElse
+  Procedure.i InitScintilla(Library.s = "")
+    ProcedureReturn (#True)
+  EndProcedure
 CompilerEndIf
 
 CompilerIf (PBLT(610))
