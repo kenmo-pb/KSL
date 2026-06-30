@@ -7,7 +7,7 @@ CompilerIf (Not Defined(_KSL_Included, #PB_Constant))
 #_KSL_Included = #True
 
 ; ---------------------
-#KSL_Version = 20260624
+#KSL_Version = 20260629
 ; ---------------------
 
 CompilerIf (#PB_Compiler_Version < 510)
@@ -2463,7 +2463,7 @@ Procedure.s FindResourcePath(ResourceName.s)
       CompilerCase (#PB_OS_Linux)
       CompilerCase (#PB_OS_MacOS)
         If (IsProgramWithinBundle())
-          AddString(PathToTry(), EnsurePathSeparator(GetAppPath()) + "Contents/Resources/")
+          AddString(PathToTry(), EnsurePathSeparator(GetProgramAppPath()) + "Contents/Resources/")
         EndIf
     CompilerEndSelect
     
@@ -2679,6 +2679,35 @@ CompilerElseIf (#Linux)
     RunProgram("xdg-open", Quote(_Folder), _Folder)
   EndMacro
 CompilerEndIf
+
+Procedure.i LaunchApp(AppPath.s, Parameters.s = "", WorkingDirectory.s = "")
+  Protected Result.i = #False
+  If (AppPath)
+    If (WorkingDirectory = "")
+      WorkingDirectory = GetCurrentDirectory()
+    EndIf
+    CompilerIf (#Mac)
+      Select (FileSize(AppPath))
+        Case #PB_FileSize_Directory
+          Protected FullParams.s = QuoteIfSpaces(AppPath)
+          If (#True)
+            FullParams = "-a " + FullParams
+          EndIf
+          If (Parameters)
+            FullParams + " --args " + Parameters
+          EndIf
+          Result = Bool(RunProgram("open", FullParams, WorkingDirectory))
+        Case 0, #PB_FileSize_Missing
+          ;
+        Default
+          Result = Bool(RunProgram(AppPath, Parameters, WorkingDirectory))
+      EndSelect
+    CompilerElse
+      Result = Bool(RunProgram(AppPath, Parameters, WorkingDirectory))
+    CompilerEndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
 
 CompilerIf (#Windows)
 Procedure.i SetHidden(FileOrFolder.s, State.i)
@@ -5572,6 +5601,81 @@ CompilerEndIf ; Linux
 ;-
 ;- - Mac
 CompilerIf (#Mac)
+
+#AppleQuarantineAttribute = "com.apple.quarantine"
+
+Procedure.i IsAppTranslocated()
+  ; https://lapcatsoftware.com/articles/app-translocation.html
+  ;   or use 'translocate-status-check' ?
+  ; https://lapcatsoftware.com/articles/translocate-relocated.html
+  Protected Path.s = ProgramFilename()
+  If (FindString(Path, "/AppTranslocation/"))
+    ;If (StartsWith(Path, "/private/"))
+      ProcedureReturn (#True)
+    ;EndIf
+  EndIf
+  ProcedureReturn (#False)
+EndProcedure
+
+Procedure.i HasXAttribute(Path.s, Attribute.s)
+  ; https://stackoverflow.com/questions/46198557/understanding-output-of-xattr-p-com-apple-quarantine
+  ;   or 'ls -l@'
+  Protected Result.i = #False
+  If (Path And Attribute)
+    Protected Output.s = RunProgramOutputHidden("xattr", "-p " + Attribute + " " + QuoteIfSpaces(Path), GetCurrentDirectory(), #PB_Program_Read)
+    If (Output)
+      Result = #True
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure RemoveXAttribute(Path.s, Attribute.s, Recursive.i = #False)
+  ; https://superuser.com/questions/526920/how-to-remove-quarantine-from-file-permissions-in-os-x
+  If (Path And Attribute)
+    Protected Params.s = "-d"
+    If (Recursive)
+      Params + "r";" -r"
+    EndIf
+    Params + " " + Attribute + " " + QuoteIfSpaces(Path)
+    RunProgramHidden("xattr", Params, GetCurrentDirectory(), #PB_Program_Wait)
+  EndIf
+EndProcedure
+
+Procedure.s GetUntranslocatedPath(TranslocatedPath.s)
+  ; https://lapcatsoftware.com/articles/translocate-relocated.html
+  Protected Result.s = ""
+  If (TranslocatedPath)
+    ;Protected Output.s = RunProgramOutputHidden("security", "translocate-status-check " + QuoteIfSpaces(TranslocatedPath))
+    Protected Output.s = RunProgramOutputHidden("security", "translocate-original-path " + QuoteIfSpaces(TranslocatedPath), GetCurrentDirectory(), #PB_Program_Read)
+    If (Output)
+      Result = After(Output, #TAB$)
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i LaunchAppUntranslocated(ProgramParams.s = "")
+  Protected Result.i = #False
+  If (IsAppTranslocated())
+    Protected AppPath.s = GetProgramAppPath()
+    Protected Untranslocated.s = GetUntranslocatedPath(AppPath)
+    If (Untranslocated)
+      ;If (HasXAttribute(Untranslocated, #AppleQuarantineAttribute))
+        RemoveXAttribute(Untranslocated, #AppleQuarantineAttribute, #True)
+      ;EndIf
+      Protected Params.s = ProgramParams
+      If ((Params = "") And (#True))
+        Params = ProgramParametersString()
+      EndIf
+      Result = LaunchApp(Untranslocated, Params, GetCurrentDirectory())
+      If (Result And (#False))
+        End
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
 
 CompilerEndIf ; Mac
 
