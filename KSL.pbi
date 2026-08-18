@@ -61,6 +61,17 @@ CompilerIf (Not Defined(KSL_IncludeInstanceFunctions, #PB_Constant))
   #KSL_IncludeInstanceFunctions = #False
 CompilerEndIf
 
+CompilerIf (Not Defined(KSL_IncludeStringBuilderFunctions, #PB_Constant))
+  #KSL_IncludeStringBuilderFunctions = #False
+CompilerEndIf
+CompilerIf (Not Defined(KSL_PatchStringBuilderFunctions, #PB_Constant))
+  CompilerIf ((#KSL_IncludeStringBuilderFunctions) And (#PB_Compiler_Version < 640))
+    #KSL_PatchStringBuilderFunctions = #True
+  CompilerElse
+    #KSL_PatchStringBuilderFunctions = #False
+  CompilerEndIf
+CompilerEndIf
+
 ;-
 
 ;- ----- OS Info -----
@@ -1909,6 +1920,171 @@ Procedure.s OSVersionString()
   CompilerEndIf
   ProcedureReturn (Result)
 EndProcedure
+
+;-
+
+;- ----- StringBuilder Functions -----
+
+CompilerIf (#KSL_IncludeStringBuilderFunctions)
+
+Structure _KSL_StringBuilder
+  Buffer.i
+  AllocatedBytes.i
+  WrittenBytes.i
+  IncrementLength.i
+EndStructure
+
+Global NewMap _KSL_StringBuilderMap.i()
+
+Procedure.i KSL_IsStringBuilder(StringBuilder.i)
+  ProcedureReturn (Bool(FindMapElement(_KSL_StringBuilderMap(), Str(StringBuilder))))
+EndProcedure
+
+Procedure KSL_FreeStringBuilder(StringBuilder.i)
+  If (FindMapElement(_KSL_StringBuilderMap(), Str(StringBuilder)))
+    Protected *SB._KSL_StringBuilder = _KSL_StringBuilderMap()
+    DeleteMapElement(_KSL_StringBuilderMap())
+    If (*SB)
+      If (*SB\Buffer)
+        FreeMemory(*SB\Buffer)
+      EndIf
+      FreeStructure(*SB)
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure.i KSL_CreateStringBuilder(StringBuilder.i, IncrementLength.i = #PB_Default)
+  Protected Result.i = #Null
+  If (StringBuilder = #PB_Any)
+    Protected i.i = $10000
+    While (FindMapElement(_KSL_StringBuilderMap(), Str(i)))
+      i + 1
+    Wend
+    StringBuilder = i
+  Else
+    If (FindMapElement(_KSL_StringBuilderMap(), Str(StringBuilder)))
+      KSL_FreeStringBuilder(StringBuilder)
+    EndIf
+  EndIf
+  If (IncrementLength <= 0)
+    IncrementLength = 8192
+  EndIf
+  Protected *SB._KSL_StringBuilder = AllocateStructure(_KSL_StringBuilder)
+  If (*SB)
+    AddMapElement(_KSL_StringBuilderMap(), Str(StringBuilder))
+    _KSL_StringBuilderMap() = *SB
+    *SB\IncrementLength = IncrementLength
+    Result = StringBuilder
+    If (StringBuilder = 0)
+      Result = #True
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure _KSL_GrowStringBuilderBuffer(*SB._KSL_StringBuilder, MinimumSize.i)
+  If (*SB And (MinimumSize > 0))
+    Protected NewSize.i = *SB\AllocatedBytes
+    While (NewSize < MinimumSize)
+      NewSize + *SB\IncrementLength
+    Wend
+    If (*SB\Buffer)
+      Protected *NewBuffer = ReAllocateMemory(*SB\Buffer, NewSize, #PB_Memory_NoClear)
+      If (*NewBuffer)
+        If (*NewBuffer <> *SB\Buffer)
+          *SB\Buffer = *NewBuffer
+        EndIf
+        *SB\AllocatedBytes = NewSize
+      EndIf
+    Else
+      *SB\Buffer = AllocateMemory(NewSize, #PB_Memory_NoClear)
+      If (*SB\Buffer)
+        *SB\AllocatedBytes = NewSize
+        *SB\WrittenBytes = 0
+      EndIf
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure.i KSL_AppendStringBuilderString(StringBuilder.i, String.s)
+  Protected Result.i = #False
+  If (FindMapElement(_KSL_StringBuilderMap(), Str(StringBuilder)))
+    Protected *SB._KSL_StringBuilder = _KSL_StringBuilderMap()
+    If (*SB)
+      Protected AdditionalBytes.i = StringByteLength(String)
+      If (AdditionalBytes > 0)
+        Protected TotalBytes.i = *SB\WrittenBytes + AdditionalBytes
+        If (*SB\AllocatedBytes < TotalBytes)
+          _KSL_GrowStringBuilderBuffer(*SB, TotalBytes)
+        EndIf
+        If (*SB\AllocatedBytes >= TotalBytes)
+          CopyMemory(@String, *SB\Buffer + *SB\WrittenBytes, AdditionalBytes)
+          *SB\WrittenBytes + AdditionalBytes
+          Result = #True
+        EndIf
+      Else
+        Result = #True
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i KSL_AppendStringBuilderStringN(StringBuilder.i, String.s)
+  ProcedureReturn (KSL_AppendStringBuilderString(StringBuilder, String + #EOL$))
+EndProcedure
+
+Procedure.s KSL_GetStringBuilderString(StringBuilder.i)
+  Protected Result.s = ""
+  If (FindMapElement(_KSL_StringBuilderMap(), Str(StringBuilder)))
+    Protected *SB._KSL_StringBuilder = _KSL_StringBuilderMap()
+    If (*SB)
+      If (*SB\WrittenBytes > 0)
+        Result = PeekS(*SB\Buffer, *SB\WrittenBytes / SizeOf(CHARACTER))
+      EndIf
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+Procedure.i KSL_ResetStringBuilder(StringBuilder.i)
+  Protected Result.i = #False
+  If (FindMapElement(_KSL_StringBuilderMap(), Str(StringBuilder)))
+    Protected *SB._KSL_StringBuilder = _KSL_StringBuilderMap()
+    If (*SB)
+      *SB\WrittenBytes = 0
+      Result = #True
+    EndIf
+  EndIf
+  ProcedureReturn (Result)
+EndProcedure
+
+CompilerIf (#KSL_PatchStringBuilderFunctions)
+
+Macro AppendStringBuilderString(_StringBuilder, _String)
+  KSL_AppendStringBuilderString((_StringBuilder), _String)
+EndMacro
+Macro AppendStringBuilderStringN(_StringBuilder, _String)
+  KSL_AppendStringBuilderStringN((_StringBuilder), _String)
+EndMacro
+Macro CreateStringBuilder(_StringBuilder, _IncrementLength = #PB_Default)
+  KSL_CreateStringBuilder((_StringBuilder), (_IncrementLength))
+EndMacro
+Macro FreeStringBuilder(_StringBuilder)
+  KSL_FreeStringBuilder(_StringBuilder)
+EndMacro
+Macro GetStringBuilderString(_StringBuilder)
+  KSL_GetStringBuilderString(_StringBuilder)
+EndMacro
+Macro IsStringBuilder(_StringBuilder)
+  KSL_IsStringBuilder(_StringBuilder)
+EndMacro
+Macro ResetStringBuilder(_StringBuilder)
+  KSL_ResetStringBuilder(_StringBuilder)
+EndMacro
+
+CompilerEndIf
+CompilerEndIf
 
 ;-
 
@@ -5324,8 +5500,6 @@ Procedure _KSL_ReadInstanceMapFile()
 EndProcedure
 CompilerEndIf
 
-CompilerIf (#GTK2)
-
 CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_WindowsMutex)
 Procedure.i _KSL_InstanceWindowCallback(hWnd.i, uMsg.i, wParam.i, lParam.i)
   If (uMsg = _KSL_RegisteredMessage)
@@ -5336,6 +5510,8 @@ Procedure.i _KSL_InstanceWindowCallback(hWnd.i, uMsg.i, wParam.i, lParam.i)
   ProcedureReturn (#PB_ProcessPureBasicEvents)
 EndProcedure
 CompilerEndIf
+
+CompilerIf (#GTK2)
 
 CompilerIf (#_KSL_InstanceMethod & #_KSL_InstanceMethod_LinuxPIDFile)
 
